@@ -32,14 +32,13 @@ qt_add_qml_module(appRaspberrypiLED
 )
 
 qt_add_resources(appRaspberrypiLED "weather_icons"
-    PREFIX "/weather"
-    BASE "${CMAKE_CURRENT_SOURCE_DIR}/weather"
     FILES
-        sun.svg
-        cloud.svg
-        rain.svg
-        snow.svg
-        thunder.svg
+        weather/sun.svg
+        weather/cloud.svg
+        weather/fog.svg
+        weather/rain.svg
+        weather/snow.svg
+        weather/thunder.svg
 )
 
 

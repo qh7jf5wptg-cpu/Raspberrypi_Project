@@ -281,7 +281,7 @@ ApplicationWindow {
     function weatherIconSource(code) {
         if (code === 0) return "qrc:/weather/sun.svg";
         if (code <= 3) return "qrc:/weather/cloud.svg";
-        if (code === 45 || code === 48) return "qrc:/weather/cloud.svg";
+        if (code === 45 || code === 48) return "qrc:/weather/fog.svg";
         if (code >= 51 && code <= 57) return "qrc:/weather/rain.svg";
         if (code >= 61 && code <= 67) return "qrc:/weather/rain.svg";
         if (code >= 71 && code <= 77) return "qrc:/weather/snow.svg";
