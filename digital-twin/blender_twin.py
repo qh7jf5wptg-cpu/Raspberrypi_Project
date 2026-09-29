@@ -11,7 +11,6 @@ Run from Blender's Scripting workspace (Run Script).
 import bpy
 import math
 import paho.mqtt.client as mqtt
-from bpy_extras import view3d_utils
 
 BROKER = "localhost"
 PORT = 1883
@@ -201,42 +200,6 @@ class TWIN_OT_toggle_led(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class TWIN_OT_click_switch(bpy.types.Operator):
-    bl_idname = "twin.click_switch"
-    bl_label = "Click switch to toggle"
-    bl_description = "Click the 3D switch to toggle the LED"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def invoke(self, context, event):
-        if context.area.type != 'VIEW_3D':
-            self.report({'WARNING'}, "View3D not found")
-            return {'CANCELLED'}
-        context.window_manager.modal_handler_add(self)
-        self.report({'INFO'}, "Click the switch, then right-click or Escape to finish")
-        return {'RUNNING_MODAL'}
-
-    def modal(self, context, event):
-        if event.type in {'RIGHTMOUSE', 'ESC'}:
-            return {'CANCELLED'}
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            region = getattr(context, "region", None)
-            rv3d = getattr(context, "region_data", None)
-            if region is None or rv3d is None:
-                return {'RUNNING_MODAL'}
-            try:
-                coord = (event.mouse_region_x, event.mouse_region_y)
-                origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
-                direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
-                hit, loc, normal, index, obj, matrix = context.scene.ray_cast(
-                    context.view_layer.depsgraph, origin, direction)
-                if hit and obj and obj.name in ("SwitchLever", "SwitchBase"):
-                    context.scene.twin_led_on = not context.scene.twin_led_on
-                    self.report({'INFO'}, "LED " + ("ON" if context.scene.twin_led_on else "OFF"))
-            except Exception:
-                pass
-        return {'RUNNING_MODAL'}
-
-
 class TWIN_PT_control(bpy.types.Panel):
     bl_label = "Pi Twin"
     bl_idname = "VIEW3D_PT_twin_control"
@@ -264,7 +227,6 @@ class TWIN_PT_control(bpy.types.Panel):
         box.label(text="Control", icon="TOOL_SETTINGS")
         row = box.row()
         row.operator("twin.toggle_led", text="Force LED ON" if not scene.twin_led_on else "Turn LED OFF", icon="LIGHT")
-        box.operator("twin.click_switch", text="Click switch to toggle", icon="RESTRICT_SELECT_OFF")
         box.prop(scene, "twin_threshold", text="Threshold (°C)")
 
         layout.separator()
@@ -282,7 +244,6 @@ def register():
         )
     try:
         bpy.utils.register_class(TWIN_OT_toggle_led)
-        bpy.utils.register_class(TWIN_OT_click_switch)
         bpy.utils.register_class(TWIN_PT_control)
     except ValueError:
         pass  # already registered from a previous run
