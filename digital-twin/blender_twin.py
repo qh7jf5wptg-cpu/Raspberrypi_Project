@@ -9,6 +9,7 @@ Run from Blender's Scripting workspace (Run Script).
 """
 
 import bpy
+import math
 import paho.mqtt.client as mqtt
 
 BROKER = "localhost"
@@ -111,6 +112,25 @@ def ensure_objects():
         heat.scale = (0.07, 0.07, 0.34)
         heat.data.materials.append(mat)
 
+    # Toggle switch (3D representation of the LED state).
+    if "SwitchBase" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(-1.25, 0.0, 0.16))
+        base = bpy.context.object
+        base.name = "SwitchBase"
+        base.scale = (0.34, 0.16, 0.07)
+
+    if "SwitchLever" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(-1.25, 0.0, 0.28))
+        lever = bpy.context.object
+        lever.name = "SwitchLever"
+        lever.scale = (0.26, 0.025, 0.025)
+        mat = bpy.data.materials.new("SwitchLeverMat")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = (0.15, 0.15, 0.2, 1.0)
+        lever.data.materials.append(mat)
+
 
 def apply_twin():
     scene = bpy.context.scene
@@ -122,6 +142,11 @@ def apply_twin():
 
     # LED material: red when on, dark when off.
     _set_led_material(state["led"])
+
+    # Toggle switch lever: up when LED on, down when off.
+    lever = bpy.data.objects.get("SwitchLever")
+    if lever:
+        lever.rotation_euler.x = math.radians(30) if state["led"] else math.radians(-30)
 
     # Temperature text readout.
     txt = bpy.data.objects.get("TempText")
