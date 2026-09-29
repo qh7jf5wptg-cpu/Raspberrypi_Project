@@ -11,6 +11,7 @@ Run from Blender's Scripting workspace (Run Script).
 import bpy
 import math
 import paho.mqtt.client as mqtt
+from bpy_extras import view3d_utils
 
 BROKER = "localhost"
 PORT = 1883
@@ -37,34 +38,38 @@ def on_message(_client, _userdata, msg):
 
 def _set_material_color(name, color):
     mat = bpy.data.materials.get(name)
-    if not mat or not mat.use_nodes:
-        return
-    for node in mat.node_tree.nodes:
-        if node.type == "BSDF_PRINCIPLED":
-            node.inputs["Base Color"].default_value = color
-            break
+    if mat and mat.use_nodes:
+        for node in mat.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                node.inputs["Base Color"].default_value = color
+                break
+        mat.diffuse_color = color
+    obj = bpy.data.objects.get(name)
+    if obj:
+        obj.color = color
 
 
 def _set_led_material(on):
-    # Material (shown in Material Preview / Rendered views)
+    # LED: green when on, original dark gray when off.
     mat = bpy.data.materials.get("LED")
     if mat and mat.use_nodes:
         for node in mat.node_tree.nodes:
             if node.type == "BSDF_PRINCIPLED":
                 if on:
-                    node.inputs["Base Color"].default_value = (1.0, 0.05, 0.05, 1.0)
-                    node.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
-                    node.inputs["Emission Strength"].default_value = 5.0
+                    node.inputs["Base Color"].default_value = (0.2, 0.9, 0.3, 1.0)
+                    node.inputs["Emission Color"].default_value = (0.1, 0.8, 0.2, 1.0)
+                    node.inputs["Emission Strength"].default_value = 4.0
                 else:
-                    node.inputs["Base Color"].default_value = (0.04, 0.04, 0.04, 1.0)
+                    node.inputs["Base Color"].default_value = (0.05, 0.05, 0.05, 1.0)
                     node.inputs["Emission Color"].default_value = (0.0, 0.0, 0.0, 1.0)
                     node.inputs["Emission Strength"].default_value = 0.0
                 break
+        mat.diffuse_color = (0.2, 0.9, 0.3, 1.0) if on else (0.05, 0.05, 0.05, 1.0)
 
     # Viewport display color (also shown in Solid view)
     obj = bpy.data.objects.get("LED")
     if obj:
-        obj.color = (1.0, 0.1, 0.1, 1.0) if on else (0.12, 0.12, 0.12, 1.0)
+        obj.color = (0.2, 0.9, 0.3, 1.0) if on else (0.12, 0.12, 0.12, 1.0)
 
 
 def _heat_color(t):
@@ -110,7 +115,7 @@ def ensure_objects():
         bpy.ops.mesh.primitive_cube_add(size=1, location=(1.55, 0.0, 0.22))
         heat = bpy.context.object
         heat.name = "Heatbar"
-        heat.scale = (0.07, 0.07, 0.34)
+        heat.scale = (0.13, 0.13, 0.4)
         heat.data.materials.append(mat)
 
     # Toggle switch (3D representation of the LED state).
@@ -196,6 +201,36 @@ class TWIN_OT_toggle_led(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class TWIN_OT_click_switch(bpy.types.Operator):
+    bl_idname = "twin.click_switch"
+    bl_label = "Click switch to toggle"
+    bl_description = "Click the 3D switch to toggle the LED"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def invoke(self, context, event):
+        if context.area.type != 'VIEW_3D':
+            self.report({'WARNING'}, "View3D not found")
+            return {'CANCELLED'}
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type in {'RIGHTMOUSE', 'ESC'}:
+            return {'CANCELLED'}
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            region = context.region
+            rv3d = context.region_data
+            coord = (event.mouse_region_x, event.mouse_region_y)
+            origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+            direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+            hit, loc, normal, index, obj, matrix = context.scene.ray_cast(
+                context.view_layer.depsgraph, origin, direction)
+            if hit and obj and obj.name in ("SwitchLever", "SwitchBase"):
+                context.scene.twin_led_on = not context.scene.twin_led_on
+                self.report({'INFO'}, "LED " + ("ON" if context.scene.twin_led_on else "OFF"))
+        return {'RUNNING_MODAL'}
+
+
 class TWIN_PT_control(bpy.types.Panel):
     bl_label = "Pi Twin"
     bl_idname = "VIEW3D_PT_twin_control"
@@ -223,6 +258,7 @@ class TWIN_PT_control(bpy.types.Panel):
         box.label(text="Control", icon="TOOL_SETTINGS")
         row = box.row()
         row.operator("twin.toggle_led", text="Force LED ON" if not scene.twin_led_on else "Turn LED OFF", icon="LIGHT")
+        box.operator("twin.click_switch", text="Click switch to toggle", icon="RESTRICT_SELECT_OFF")
         box.prop(scene, "twin_threshold", text="Threshold (°C)")
 
         layout.separator()
@@ -240,6 +276,7 @@ def register():
         )
     try:
         bpy.utils.register_class(TWIN_OT_toggle_led)
+        bpy.utils.register_class(TWIN_OT_click_switch)
         bpy.utils.register_class(TWIN_PT_control)
     except ValueError:
         pass  # already registered from a previous run
