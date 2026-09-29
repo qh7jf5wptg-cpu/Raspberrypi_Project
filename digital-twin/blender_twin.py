@@ -10,6 +10,9 @@ Run from Blender's Scripting workspace (Run Script).
 
 import bpy
 import math
+import time
+import json
+import urllib.request
 import paho.mqtt.client as mqtt
 
 BROKER = "localhost"
@@ -20,6 +23,7 @@ state = {"temperature": 0.0, "led": False, "threshold": 60.0}
 _client = None
 _pub = {"led": None, "threshold": None}
 _switch = {"last_up": None, "last_state": None}
+forecast = []
 
 
 def on_message(_client, _userdata, msg):
@@ -75,6 +79,58 @@ def _heat_color(t):
     # Map 30..80 C to blue -> red.
     x = max(0.0, min(1.0, (t - 30.0) / 50.0))
     return (x, 0.25 * (1.0 - x) + 0.05, 1.0 - x, 1.0)
+
+
+def _weather_kind(code):
+    if code == 0:
+        return "sun"
+    if code <= 3:
+        return "cloud"
+    if code in (45, 48):
+        return "fog"
+    if 51 <= code <= 67:
+        return "rain"
+    if 71 <= code <= 77:
+        return "snow"
+    if 80 <= code <= 82:
+        return "rain"
+    if code in (85, 86):
+        return "snow"
+    if code >= 95:
+        return "thunder"
+    return "cloud"
+
+
+def fetch_forecast():
+    url = ("https://api.open-meteo.com/v1/forecast?latitude=60.1699&longitude=24.9384"
+           "&daily=temperature_2m_max,temperature_2m_min,weather_code"
+           "&timezone=Europe/Helsinki&forecast_days=7")
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        daily = data.get("daily", {})
+        times = daily.get("time", [])
+        codes = daily.get("weather_code", [])
+        his = daily.get("temperature_2m_max", [])
+        los = daily.get("temperature_2m_min", [])
+        out = []
+        for i in range(min(len(times), 7)):
+            out.append({
+                "day": times[i][5:],
+                "code": codes[i] if i < len(codes) else 0,
+                "hi": round(his[i]) if i < len(his) else 0,
+                "lo": round(los[i]) if i < len(los) else 0,
+            })
+        return out
+    except Exception as e:
+        print("forecast fetch failed:", e)
+        return []
+
+
+def _forecast_items(self, context):
+    if not forecast:
+        return [("0", "Loading forecast...", "", 0)]
+    return [(str(i), f"{f['day']}  {f['hi']}C / {f['lo']}C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
 
 
 def ensure_objects():
@@ -136,6 +192,63 @@ def ensure_objects():
             bsdf.inputs["Base Color"].default_value = (0.15, 0.15, 0.2, 1.0)
         lever.data.materials.append(mat)
 
+    # --- Weather preview objects ---
+    if "WeatherSun" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.22, location=(0.0, 0.0, 1.7))
+        sun = bpy.context.object
+        sun.name = "WeatherSun"
+        mat = bpy.data.materials.new("WeatherSunMat")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = (1.0, 0.8, 0.1, 1.0)
+            bsdf.inputs["Emission Color"].default_value = (1.0, 0.7, 0.0, 1.0)
+            bsdf.inputs["Emission Strength"].default_value = 4.0
+        sun.data.materials.append(mat)
+
+    if "WeatherCloud" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, location=(0.0, 0.0, 1.7))
+        cloud = bpy.context.object
+        cloud.name = "WeatherCloud"
+        cloud.scale = (1.0, 0.55, 0.42)
+        mat = bpy.data.materials.new("WeatherCloudMat")
+        mat.use_nodes = True
+        mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.82, 0.84, 0.87, 1.0)
+        cloud.data.materials.append(mat)
+
+    if not any(o.name.startswith("WeatherDrop") for o in bpy.data.objects):
+        mat = bpy.data.materials.new("WeatherDropMat")
+        mat.use_nodes = True
+        mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.4, 0.6, 1.0, 1.0)
+        for i in range(6):
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.03, location=(0.0, 0.0, 1.5))
+            d = bpy.context.object
+            d.name = f"WeatherDrop{i}"
+            d.data.materials.append(mat)
+
+    if "WeatherBolt" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0.0, 0.0, 1.25))
+        bolt = bpy.context.object
+        bolt.name = "WeatherBolt"
+        bolt.scale = (0.04, 0.04, 0.45)
+        mat = bpy.data.materials.new("WeatherBoltMat")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = (1.0, 0.9, 0.2, 1.0)
+            bsdf.inputs["Emission Color"].default_value = (1.0, 0.9, 0.2, 1.0)
+            bsdf.inputs["Emission Strength"].default_value = 0.0
+        bolt.data.materials.append(mat)
+
+    if "WeatherTemp" not in bpy.data.objects:
+        curve = bpy.data.curves.new("WeatherTemp", type="FONT")
+        curve.body = "--"
+        curve.align_x = "CENTER"
+        obj = bpy.data.objects.new("WeatherTemp", curve)
+        obj.location = (0.0, -1.1, 1.6)
+        obj.scale = (0.32, 0.32, 0.32)
+        bpy.context.collection.objects.link(obj)
+
 
 def apply_twin():
     scene = bpy.context.scene
@@ -187,6 +300,64 @@ def apply_twin():
             _client.publish("machine/command/threshold", f"{thr:.1f}")
             _pub["threshold"] = thr
 
+    # Weather preview animation for the selected forecast day.
+    idx = int(scene.twin_day)
+    sel = forecast[idx] if 0 <= idx < len(forecast) else None
+    kind = _weather_kind(sel["code"]) if sel else "sun"
+    anim = time.time()
+
+    sun = bpy.data.objects.get("WeatherSun")
+    cloud = bpy.data.objects.get("WeatherCloud")
+    bolt = bpy.data.objects.get("WeatherBolt")
+    drops = [o for o in bpy.data.objects if o.name.startswith("WeatherDrop")]
+    ttxt = bpy.data.objects.get("WeatherTemp")
+
+    for o in (sun, cloud, bolt):
+        if o:
+            o.hide_viewport = True
+            o.hide_render = True
+    for d in drops:
+        d.hide_viewport = True
+        d.hide_render = True
+
+    if kind == "sun" and sun:
+        sun.hide_viewport = False
+        sun.hide_render = False
+        sun.rotation_euler.z += 0.03
+        sc = 1.0 + 0.08 * math.sin(anim * 3)
+        sun.scale = (sc, sc, sc)
+    elif kind in ("cloud", "fog") and cloud:
+        cloud.hide_viewport = False
+        cloud.hide_render = False
+        cloud.location.z = 1.7 + 0.05 * math.sin(anim * 2)
+    elif kind in ("rain", "snow"):
+        if cloud:
+            cloud.hide_viewport = False
+            cloud.hide_render = False
+            cloud.location.z = 1.7 + 0.05 * math.sin(anim * 2)
+        speed = 0.9 if kind == "rain" else 0.45
+        for i, d in enumerate(drops):
+            d.hide_viewport = False
+            d.hide_render = False
+            d.location.x = -0.22 + i * 0.09
+            d.location.z = 1.5 - ((anim * speed + i * 0.22) % 0.9)
+    elif kind == "thunder":
+        if cloud:
+            cloud.hide_viewport = False
+            cloud.hide_render = False
+            cloud.location.z = 1.7 + 0.05 * math.sin(anim * 2)
+        if bolt:
+            bolt.hide_viewport = False
+            bolt.hide_render = False
+            if bolt.data.materials and bolt.data.materials[0].use_nodes:
+                for node in bolt.data.materials[0].node_tree.nodes:
+                    if node.type == "BSDF_PRINCIPLED":
+                        node.inputs["Emission Strength"].default_value = 5.0 if (int(anim * 3) % 2 == 0) else 0.0
+                        break
+
+    if ttxt:
+        ttxt.data.body = f"{sel['day']}  {sel['hi']}C / {sel['lo']}C" if sel else "--"
+
     return 0.5
 
 
@@ -229,6 +400,10 @@ class TWIN_PT_control(bpy.types.Panel):
         row.operator("twin.toggle_led", text="Force LED ON" if not scene.twin_led_on else "Turn LED OFF", icon="LIGHT")
         box.prop(scene, "twin_threshold", text="Threshold (°C)")
 
+        box = layout.box()
+        box.label(text="Weather preview", icon="OUTLINER_OB_LIGHT")
+        box.prop(scene, "twin_day", text="Day")
+
         layout.separator()
         layout.label(text="Changes are sent to the Pi", icon="INFO")
 
@@ -237,6 +412,12 @@ def register():
     if not hasattr(bpy.types.Scene, "twin_led_on"):
         bpy.types.Scene.twin_led_on = bpy.props.BoolProperty(
             name="LED on", description="Turn the Pi LED on/off", default=False
+        )
+    if not hasattr(bpy.types.Scene, "twin_day"):
+        bpy.types.Scene.twin_day = bpy.props.EnumProperty(
+            name="Weather day",
+            description="Select a day to preview its weather",
+            items=_forecast_items,
         )
     if not hasattr(bpy.types.Scene, "twin_threshold"):
         bpy.types.Scene.twin_threshold = bpy.props.FloatProperty(
@@ -250,7 +431,7 @@ def register():
 
 
 def main():
-    global _client
+    global _client, forecast
     try:
         _client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     except AttributeError:
@@ -263,6 +444,7 @@ def main():
 
     register()
     ensure_objects()
+    forecast = fetch_forecast()
     bpy.app.timers.register(apply_twin, first_interval=0.5)
     print("Blender twin running (bidirectional). Open the 'Twin' sidebar panel.")
 
