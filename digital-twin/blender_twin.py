@@ -136,9 +136,27 @@ class TWIN_PT_control(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text=f"Temp: {state['temperature']:.1f} C")
-        layout.prop(context.scene, "twin_led_on")
-        layout.prop(context.scene, "twin_threshold")
+        scene = context.scene
+
+        box = layout.box()
+        box.label(text="Status", icon="INFO")
+        row = box.row()
+        row.label(text="Temperature")
+        row.label(text=f"{state['temperature']:.1f} °C")
+        row = box.row()
+        row.label(text="LED")
+        row.label(text="ON" if state["led"] else "OFF")
+        row = box.row()
+        row.label(text="Threshold")
+        row.label(text=f"{state['threshold']:.1f} °C")
+
+        box = layout.box()
+        box.label(text="Control", icon="TOOL_SETTINGS")
+        box.prop(scene, "twin_led_on", text="Force LED on")
+        box.prop(scene, "twin_threshold", text="Threshold (°C)")
+
+        layout.separator()
+        layout.label(text="Changes are sent to the Pi", icon="INFO")
 
 
 def register():
