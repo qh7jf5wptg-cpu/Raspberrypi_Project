@@ -31,6 +31,18 @@ qt_add_qml_module(appRaspberrypiLED
         Main.qml
 )
 
+qt_add_resources(appRaspberrypiLED "weather_icons"
+    PREFIX "/weather"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/weather"
+    FILES
+        sun.svg
+        cloud.svg
+        rain.svg
+        snow.svg
+        thunder.svg
+)
+
+
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.

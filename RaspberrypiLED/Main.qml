@@ -243,10 +243,12 @@ ApplicationWindow {
                             font.bold: true
                             color: "#333333"
                         }
-                        Text {
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: model.icon
-                            font.pixelSize: 26
+                            source: model.iconSource
+                            width: 26
+                            height: 26
+                            fillMode: Image.PreserveAspectFit
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -276,17 +278,17 @@ ApplicationWindow {
 
     ListModel { id: weatherModel }
 
-    function weatherIcon(code) {
-        if (code === 0) return "☀️";
-        if (code <= 3) return "🌤️";
-        if (code === 45 || code === 48) return "🌫️";
-        if (code >= 51 && code <= 57) return "🌧️";
-        if (code >= 61 && code <= 67) return "🌧️";
-        if (code >= 71 && code <= 77) return "❄️";
-        if (code >= 80 && code <= 82) return "🌦️";
-        if (code === 85 || code === 86) return "🌨️";
-        if (code >= 95) return "⛈️";
-        return "🌡️";
+    function weatherIconSource(code) {
+        if (code === 0) return "qrc:/weather/sun.svg";
+        if (code <= 3) return "qrc:/weather/cloud.svg";
+        if (code === 45 || code === 48) return "qrc:/weather/cloud.svg";
+        if (code >= 51 && code <= 57) return "qrc:/weather/rain.svg";
+        if (code >= 61 && code <= 67) return "qrc:/weather/rain.svg";
+        if (code >= 71 && code <= 77) return "qrc:/weather/snow.svg";
+        if (code >= 80 && code <= 82) return "qrc:/weather/rain.svg";
+        if (code === 85 || code === 86) return "qrc:/weather/snow.svg";
+        if (code >= 95) return "qrc:/weather/thunder.svg";
+        return "qrc:/weather/sun.svg";
     }
 
     function weatherLabel(code) {
@@ -315,7 +317,7 @@ ApplicationWindow {
                         var code = data.daily.weather_code[i];
                         weatherModel.append({
                             day: d.toLocaleDateString(Qt.locale("en_US"), "MMM. d"),
-                            icon: weatherIcon(code),
+                            iconSource: weatherIconSource(code),
                             cond: weatherLabel(code),
                             hi: Math.round(data.daily.temperature_2m_max[i]),
                             lo: Math.round(data.daily.temperature_2m_min[i])
