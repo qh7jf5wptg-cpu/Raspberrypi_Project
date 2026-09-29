@@ -212,22 +212,28 @@ class TWIN_OT_click_switch(bpy.types.Operator):
             self.report({'WARNING'}, "View3D not found")
             return {'CANCELLED'}
         context.window_manager.modal_handler_add(self)
+        self.report({'INFO'}, "Click the switch, then right-click or Escape to finish")
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             return {'CANCELLED'}
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            region = context.region
-            rv3d = context.region_data
-            coord = (event.mouse_region_x, event.mouse_region_y)
-            origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
-            direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
-            hit, loc, normal, index, obj, matrix = context.scene.ray_cast(
-                context.view_layer.depsgraph, origin, direction)
-            if hit and obj and obj.name in ("SwitchLever", "SwitchBase"):
-                context.scene.twin_led_on = not context.scene.twin_led_on
-                self.report({'INFO'}, "LED " + ("ON" if context.scene.twin_led_on else "OFF"))
+            region = getattr(context, "region", None)
+            rv3d = getattr(context, "region_data", None)
+            if region is None or rv3d is None:
+                return {'RUNNING_MODAL'}
+            try:
+                coord = (event.mouse_region_x, event.mouse_region_y)
+                origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coord)
+                direction = view3d_utils.region_2d_to_vector_3d(region, rv3d, coord)
+                hit, loc, normal, index, obj, matrix = context.scene.ray_cast(
+                    context.view_layer.depsgraph, origin, direction)
+                if hit and obj and obj.name in ("SwitchLever", "SwitchBase"):
+                    context.scene.twin_led_on = not context.scene.twin_led_on
+                    self.report({'INFO'}, "LED " + ("ON" if context.scene.twin_led_on else "OFF"))
+            except Exception:
+                pass
         return {'RUNNING_MODAL'}
 
 
