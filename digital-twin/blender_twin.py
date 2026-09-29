@@ -43,6 +43,23 @@ def _set_material_color(name, color):
             break
 
 
+def _set_led_material(on):
+    mat = bpy.data.materials.get("LED")
+    if not mat or not mat.use_nodes:
+        return
+    for node in mat.node_tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            if on:
+                node.inputs["Base Color"].default_value = (1.0, 0.05, 0.05, 1.0)
+                node.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
+                node.inputs["Emission Strength"].default_value = 5.0
+            else:
+                node.inputs["Base Color"].default_value = (0.04, 0.04, 0.04, 1.0)
+                node.inputs["Emission Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                node.inputs["Emission Strength"].default_value = 0.0
+            break
+
+
 def _heat_color(t):
     # Map 30..80 C to blue -> red.
     x = max(0.0, min(1.0, (t - 30.0) / 50.0))
@@ -99,10 +116,7 @@ def apply_twin():
         rotor.rotation_euler.z += state["temperature"] * 0.002
 
     # LED material: red when on, dark when off.
-    if state["led"]:
-        _set_material_color("LED", (1.0, 0.1, 0.1, 1.0))
-    else:
-        _set_material_color("LED", (0.05, 0.05, 0.05, 1.0))
+    _set_led_material(state["led"])
 
     # Temperature text readout.
     txt = bpy.data.objects.get("TempText")
@@ -125,6 +139,16 @@ def apply_twin():
             _pub["threshold"] = thr
 
     return 0.5
+
+
+class TWIN_OT_toggle_led(bpy.types.Operator):
+    bl_idname = "twin.toggle_led"
+    bl_label = "Toggle LED"
+    bl_description = "Toggle the Raspberry Pi LED"
+
+    def execute(self, context):
+        context.scene.twin_led_on = not context.scene.twin_led_on
+        return {'FINISHED'}
 
 
 class TWIN_PT_control(bpy.types.Panel):
@@ -152,7 +176,8 @@ class TWIN_PT_control(bpy.types.Panel):
 
         box = layout.box()
         box.label(text="Control", icon="TOOL_SETTINGS")
-        box.prop(scene, "twin_led_on", text="Force LED on")
+        row = box.row()
+        row.operator("twin.toggle_led", text="Force LED ON" if not scene.twin_led_on else "Turn LED OFF", icon="LIGHT")
         box.prop(scene, "twin_threshold", text="Threshold (°C)")
 
         layout.separator()
@@ -169,6 +194,7 @@ def register():
             name="Threshold (C)", default=60.0, min=20.0, max=100.0
         )
     try:
+        bpy.utils.register_class(TWIN_OT_toggle_led)
         bpy.utils.register_class(TWIN_PT_control)
     except ValueError:
         pass  # already registered from a previous run
