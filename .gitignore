@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Blender backups
+*.blend1
+*.blend2
+
+# Qt / CMake build output
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.o
+*.obj
+*.so
+*.dylib
+*.a
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qmlc
+qmlcache/
+.qmake.stash
+*.user
+CMakeLists.txt.user
+
+# IDEs / editors
+.qtcreator/
+.vscode/
+.idea/
+*.swp
+*~
