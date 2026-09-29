@@ -44,20 +44,25 @@ def _set_material_color(name, color):
 
 
 def _set_led_material(on):
+    # Material (shown in Material Preview / Rendered views)
     mat = bpy.data.materials.get("LED")
-    if not mat or not mat.use_nodes:
-        return
-    for node in mat.node_tree.nodes:
-        if node.type == "BSDF_PRINCIPLED":
-            if on:
-                node.inputs["Base Color"].default_value = (1.0, 0.05, 0.05, 1.0)
-                node.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
-                node.inputs["Emission Strength"].default_value = 5.0
-            else:
-                node.inputs["Base Color"].default_value = (0.04, 0.04, 0.04, 1.0)
-                node.inputs["Emission Color"].default_value = (0.0, 0.0, 0.0, 1.0)
-                node.inputs["Emission Strength"].default_value = 0.0
-            break
+    if mat and mat.use_nodes:
+        for node in mat.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                if on:
+                    node.inputs["Base Color"].default_value = (1.0, 0.05, 0.05, 1.0)
+                    node.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
+                    node.inputs["Emission Strength"].default_value = 5.0
+                else:
+                    node.inputs["Base Color"].default_value = (0.04, 0.04, 0.04, 1.0)
+                    node.inputs["Emission Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                    node.inputs["Emission Strength"].default_value = 0.0
+                break
+
+    # Viewport display color (also shown in Solid view)
+    obj = bpy.data.objects.get("LED")
+    if obj:
+        obj.color = (1.0, 0.1, 0.1, 1.0) if on else (0.12, 0.12, 0.12, 1.0)
 
 
 def _heat_color(t):
