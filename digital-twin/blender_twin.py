@@ -19,6 +19,7 @@ state = {"temperature": 0.0, "led": False, "threshold": 60.0}
 
 _client = None
 _pub = {"led": None, "threshold": None}
+_switch = {"last_up": None, "last_state": None}
 
 
 def on_message(_client, _userdata, msg):
@@ -143,10 +144,24 @@ def apply_twin():
     # LED material: red when on, dark when off.
     _set_led_material(state["led"])
 
-    # Toggle switch lever: up when LED on, down when off.
+    # Toggle switch lever: rotate it in the viewport to control the LED,
+    # and it snaps to reflect the Pi's actual state.
     lever = bpy.data.objects.get("SwitchLever")
     if lever:
-        lever.rotation_euler.x = math.radians(30) if state["led"] else math.radians(-30)
+        lever_up = lever.rotation_euler.x > 0
+
+        # If the user flipped the lever, update the panel value so the
+        # publish logic below sends the command.
+        if _switch["last_up"] is not None and lever_up != _switch["last_up"]:
+            scene.twin_led_on = lever_up
+        _switch["last_up"] = lever_up
+
+        # Snap the lever to the actual Pi state when it changes.
+        if state["led"] != _switch["last_state"]:
+            lever.rotation_euler.x = math.radians(30) if state["led"] else math.radians(-30)
+            scene.twin_led_on = state["led"]
+            _switch["last_up"] = state["led"]
+            _switch["last_state"] = state["led"]
 
     # Temperature text readout.
     txt = bpy.data.objects.get("TempText")
