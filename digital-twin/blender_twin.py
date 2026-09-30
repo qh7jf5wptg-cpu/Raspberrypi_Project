@@ -152,7 +152,7 @@ def fetch_forecast():
 def _forecast_items(self, context):
     if not forecast:
         return [("0", "Loading forecast...", "", 0)]
-    return [(str(i), f"{f['dow']} {f['day']}  {f['hi']}°C / {f['lo']}°C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
+    return [(str(i), f"{f['dow']} {f['day']}", f"{f['hi']} / {f['lo']} C", i) for i, f in enumerate(forecast)]
 
 
 def ensure_objects():
@@ -445,6 +445,10 @@ class TWIN_PT_control(bpy.types.Panel):
         box = layout.box()
         box.label(text="Weather preview", icon="OUTLINER_OB_LIGHT")
         box.prop(scene, "twin_day", text="Day")
+        _i = int(scene.twin_day)
+        if 0 <= _i < len(forecast):
+            _wf = forecast[_i]
+            box.label(text=f"{_wf['dow']} {_wf['day']}: {_wf['hi']}/{_wf['lo']} C  (code {_wf['code']})")
 
         layout.separator()
         layout.label(text="Changes are sent to the Pi", icon="INFO")
