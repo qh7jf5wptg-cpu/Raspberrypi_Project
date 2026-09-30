@@ -148,7 +148,7 @@ def fetch_forecast():
 def _forecast_items(self, context):
     if not forecast:
         return [("0", "Loading forecast...", "", 0)]
-    return [(str(i), f"{f['dow']} {f['day']}  {f['hi']}C / {f['lo']}C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
+    return [(str(i), f"{f['dow']} {f['day']}  {f['hi']}°C / {f['lo']}°C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
 
 
 def ensure_objects():
@@ -305,7 +305,7 @@ def apply_twin():
     # Temperature text readout.
     txt = bpy.data.objects.get("TempText")
     if txt:
-        txt.data.body = f"{state['temperature']:.1f} C"
+        txt.data.body = f"{state['temperature']:.1f} °C"
 
     # Heat bar color (blue -> red).
     _set_material_color("Heatbar", _heat_color(state["temperature"]))
@@ -379,7 +379,7 @@ def apply_twin():
 
     if ttxt:
         if sel:
-            ttxt.data.body = f"{sel['dow']} {sel['day']}  {sel['hi']}C / {sel['lo']}C"
+            ttxt.data.body = f"{sel['dow']} {sel['day']}  {sel['hi']}°C / {sel['lo']}°C"
             color = _weather_color(kind)
         else:
             ttxt.data.body = "--"
