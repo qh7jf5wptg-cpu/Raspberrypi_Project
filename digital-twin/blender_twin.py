@@ -12,8 +12,10 @@ import bpy
 import math
 import time
 import json
+import datetime
 import urllib.request
 import paho.mqtt.client as mqtt
+from mathutils import Vector
 
 BROKER = "localhost"
 PORT = 1883
@@ -101,6 +103,17 @@ def _weather_kind(code):
     return "cloud"
 
 
+def _weather_color(kind):
+    return {
+        "sun": (0.95, 0.61, 0.07, 1.0),
+        "cloud": (0.50, 0.55, 0.58, 1.0),
+        "fog": (0.62, 0.66, 0.69, 1.0),
+        "rain": (0.20, 0.60, 0.85, 1.0),
+        "snow": (0.00, 0.74, 0.83, 1.0),
+        "thunder": (0.95, 0.77, 0.06, 1.0),
+    }.get(kind, (1.0, 1.0, 1.0, 1.0))
+
+
 def fetch_forecast():
     url = ("https://api.open-meteo.com/v1/forecast?latitude=60.1699&longitude=24.9384"
            "&daily=temperature_2m_max,temperature_2m_min,weather_code"
@@ -115,8 +128,13 @@ def fetch_forecast():
         los = daily.get("temperature_2m_min", [])
         out = []
         for i in range(min(len(times), 7)):
+            try:
+                dow = datetime.date.fromisoformat(times[i]).strftime("%a")
+            except Exception:
+                dow = times[i][5:]
             out.append({
                 "day": times[i][5:],
+                "dow": dow,
                 "code": codes[i] if i < len(codes) else 0,
                 "hi": round(his[i]) if i < len(his) else 0,
                 "lo": round(los[i]) if i < len(los) else 0,
@@ -130,7 +148,7 @@ def fetch_forecast():
 def _forecast_items(self, context):
     if not forecast:
         return [("0", "Loading forecast...", "", 0)]
-    return [(str(i), f"{f['day']}  {f['hi']}C / {f['lo']}C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
+    return [(str(i), f"{f['dow']} {f['day']}  {f['hi']}C / {f['lo']}C", f"code {f['code']}", i) for i, f in enumerate(forecast)]
 
 
 def ensure_objects():
@@ -247,6 +265,10 @@ def ensure_objects():
         obj = bpy.data.objects.new("WeatherTemp", curve)
         obj.location = (0.0, -1.1, 1.6)
         obj.scale = (0.32, 0.32, 0.32)
+        mat = bpy.data.materials.new("WeatherTempMat")
+        mat.use_nodes = True
+        mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        obj.data.materials.append(mat)
         bpy.context.collection.objects.link(obj)
 
 
@@ -356,7 +378,23 @@ def apply_twin():
                         break
 
     if ttxt:
-        ttxt.data.body = f"{sel['day']}  {sel['hi']}C / {sel['lo']}C" if sel else "--"
+        if sel:
+            ttxt.data.body = f"{sel['dow']} {sel['day']}  {sel['hi']}C / {sel['lo']}C"
+            color = _weather_color(kind)
+        else:
+            ttxt.data.body = "--"
+            color = (1.0, 1.0, 1.0, 1.0)
+        ttxt.color = color
+        if ttxt.data and ttxt.data.materials:
+            mat = ttxt.data.materials[0]
+            mat.diffuse_color = color
+            if mat.use_nodes:
+                for node in mat.node_tree.nodes:
+                    if node.type == "BSDF_PRINCIPLED":
+                        node.inputs["Base Color"].default_value = color
+                        node.inputs["Emission Color"].default_value = color
+                        node.inputs["Emission Strength"].default_value = 1.0
+                        break
 
     return 0.5
 
@@ -445,6 +483,13 @@ def main():
     register()
     ensure_objects()
     forecast = fetch_forecast()
+
+    # Frame the whole scene (machine + weather + side objects).
+    cam = bpy.context.scene.camera
+    if cam:
+        cam.location = (7.5, -6.5, 4.5)
+        look = Vector((0.0, 0.0, 0.8)) - cam.location
+        cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     bpy.app.timers.register(apply_twin, first_interval=0.5)
     print("Blender twin running (bidirectional). Open the 'Twin' sidebar panel.")
 
