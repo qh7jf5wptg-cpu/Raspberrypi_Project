@@ -13,6 +13,7 @@ import math
 import time
 import json
 import datetime
+import ssl
 import urllib.request
 import paho.mqtt.client as mqtt
 from mathutils import Vector
@@ -119,7 +120,10 @@ def fetch_forecast():
            "&daily=temperature_2m_max,temperature_2m_min,weather_code"
            "&timezone=Europe/Helsinki&forecast_days=7")
     try:
-        with urllib.request.urlopen(url, timeout=10) as r:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(url, timeout=10, context=ctx) as r:
             data = json.loads(r.read().decode("utf-8"))
         daily = data.get("daily", {})
         times = daily.get("time", [])
@@ -141,7 +145,7 @@ def fetch_forecast():
             })
         return out
     except Exception as e:
-        print("forecast fetch failed:", e)
+        print("forecast fetch failed:", repr(e))
         return []
 
 
@@ -483,6 +487,7 @@ def main():
     register()
     ensure_objects()
     forecast = fetch_forecast()
+    print("forecast days:", len(forecast))
 
     # Frame the whole scene (machine + weather + side objects).
     cam = bpy.context.scene.camera
