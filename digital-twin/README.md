@@ -49,16 +49,40 @@ MQTT_BROKER=<mac-ip> python3 pi_publisher.py
 python3 pi_publisher.py
 ```
 
-## 4. Run the Blender subscriber (Mac)
+## 4. Run the Blender twin (Mac)
 
-In Blender, open the **Scripting** workspace, open `blender_twin.py`, and press
-**Run Script**. First create:
+Open `RaspberryPi_Twin.blend`, switch to the **Scripting** workspace, and press
+**Run Script** on the text block called **`RUN_TWIN.py`**.
 
-- an object named **Rotor** (a part that should spin), and
-- a material named **LED** (assigned to a part that should change color).
+That block is only six lines long: it loads `blender_twin.py` from this folder
+every time you run it. So after a `git pull` there is nothing to refresh — just
+press Run Script and you are running the newest code.
 
-The rotor spins faster as temperature rises; the LED material turns red when
-the LED is on.
+### Why not open `blender_twin.py` directly?
+
+Blender *copies* a script into the `.blend` file when you open it in the Text
+Editor. That copy never follows the file on disk, so it silently goes stale.
+The usual fix is to click **Text ▸ Reload from Disk** every time — easy to
+forget, and you end up debugging an old version of your own code.
+
+`RUN_TWIN.py` side-steps that: it has no link to a file at all, so it can never
+go stale, and it always runs the newest `blender_twin.py`.
+
+### Starting it without the editor
+
+```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
+/Applications/Blender.app/Contents/MacOS/Blender RaspberryPi_Twin.blend --python blender_twin.py
+```
+
+### Rebuilding the .blend
+
+If you regenerate the scene with `create_twin_blend.py`, re-install the loader:
+
+```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
+/Applications/Blender.app/Contents/MacOS/Blender --background --python setup_twin_text.py
+```
 
 ## 5. Log telemetry to SQLite (and replay it)
 
