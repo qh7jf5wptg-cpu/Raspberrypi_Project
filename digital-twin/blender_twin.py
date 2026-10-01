@@ -27,7 +27,7 @@ state = {"temperature": 0.0, "led": False, "threshold": 60.0}
 
 _client = None
 _pub = {"led": None, "threshold": None}
-_switch = {"last_up": None, "last_state": None}
+_led_seen = None  # last LED state we saw, so the panel button can follow the Pi
 forecast = []
 temp_history = []
 REPLAY_DB = os.environ.get("TWIN_DB", "/Users/kjde/Documents/ChatGPT/Raspberrypi_Project/digital-twin/telemetry.db")
@@ -227,25 +227,6 @@ def ensure_objects():
         heat.scale = (0.13, 0.13, 0.4)
         heat.data.materials.append(mat)
 
-    # Toggle switch (3D representation of the LED state).
-    if "SwitchBase" not in bpy.data.objects:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(-1.25, 0.0, 0.16))
-        base = bpy.context.object
-        base.name = "SwitchBase"
-        base.scale = (0.34, 0.16, 0.07)
-
-    if "SwitchLever" not in bpy.data.objects:
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(-1.25, 0.0, 0.28))
-        lever = bpy.context.object
-        lever.name = "SwitchLever"
-        lever.scale = (0.26, 0.025, 0.025)
-        mat = bpy.data.materials.new("SwitchLeverMat")
-        mat.use_nodes = True
-        bsdf = mat.node_tree.nodes.get("Principled BSDF")
-        if bsdf:
-            bsdf.inputs["Base Color"].default_value = (0.15, 0.15, 0.2, 1.0)
-        lever.data.materials.append(mat)
-
     # --- Weather preview objects ---
     if "WeatherSun" not in bpy.data.objects:
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.22, location=(0.0, 0.0, 1.7))
@@ -347,6 +328,7 @@ def ensure_objects():
 
 
 def apply_twin():
+    global _led_seen
     scene = bpy.context.scene
 
     # Replay mode: feed recorded rows instead of the live MQTT state.
@@ -376,24 +358,10 @@ def apply_twin():
     # LED material: red when on, dark when off.
     _set_led_material(state["led"])
 
-    # Toggle switch lever: rotate it in the viewport to control the LED,
-    # and it snaps to reflect the Pi's actual state.
-    lever = bpy.data.objects.get("SwitchLever")
-    if lever:
-        lever_up = lever.rotation_euler.x > 0
-
-        # If the user flipped the lever, update the panel value so the
-        # publish logic below sends the command.
-        if _switch["last_up"] is not None and lever_up != _switch["last_up"]:
-            scene.twin_led_on = lever_up
-        _switch["last_up"] = lever_up
-
-        # Snap the lever to the actual Pi state when it changes.
-        if state["led"] != _switch["last_state"]:
-            lever.rotation_euler.x = math.radians(30) if state["led"] else math.radians(-30)
-            scene.twin_led_on = state["led"]
-            _switch["last_up"] = state["led"]
-            _switch["last_state"] = state["led"]
+    # Keep the panel's LED button in step with the Pi's real LED state.
+    if state["led"] != _led_seen:
+        scene.twin_led_on = state["led"]
+        _led_seen = state["led"]
 
     # Temperature text readout: red and pulsing when over the threshold.
     txt = bpy.data.objects.get("TempText")
