@@ -564,7 +564,7 @@ class TWIN_PT_control(bpy.types.Panel):
         _i = int(scene.twin_day)
         if 0 <= _i < len(forecast):
             _wf = forecast[_i]
-            box.label(text=f"{_wf['dow']} {_wf['day']}: {_wf['hi']}/{_wf['lo']} C  (code {_wf['code']})")
+            box.label(text=f"{_wf['dow']} {_wf['day']}: {_wf['hi']}/{_wf['lo']} °C")
 
         box = layout.box()
         box.label(text="Replay", icon="PLAY")
