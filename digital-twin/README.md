@@ -60,6 +60,44 @@ In Blender, open the **Scripting** workspace, open `blender_twin.py`, and press
 The rotor spins faster as temperature rises; the LED material turns red when
 the LED is on.
 
+## 5. Log telemetry to SQLite (and replay it)
+
+SQLite is a single-file database built into Python — no server, no install. Use
+it to record a session and replay it later in Blender.
+
+Start the Pi app (publishing), then on the Mac run the logger:
+
+```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
+python3 telemetry_logger.py
+```
+
+It creates `telemetry.db` and writes one row per second:
+
+| column | meaning |
+| --- | --- |
+| `ts` | Unix timestamp |
+| `temperature` | CPU temperature (deg C) |
+| `led` | 1 / 0 |
+| `threshold` | threshold (deg C) |
+
+Stop with Ctrl+C. Inspect the log with the `sqlite3` CLI:
+
+```sh
+sqlite3 telemetry.db ".tables"
+sqlite3 telemetry.db "SELECT COUNT(*), ROUND(MIN(temperature),1), ROUND(MAX(temperature),1) FROM telemetry;"
+sqlite3 telemetry.db "SELECT * FROM telemetry ORDER BY ts DESC LIMIT 5;"
+```
+
+### Replay it in Blender
+
+In the **Twin** panel, tick **Replay recorded session**. The twin stops using
+the live MQTT state and instead loops through the recorded rows, so the rotor,
+LED, alarm lamp, and temperature bar graph all follow the recording.
+
+The database path defaults to `digital-twin/telemetry.db`. Override it with the
+`TWIN_DB` environment variable before launching Blender if your log is elsewhere.
+
 ## Next steps
 
 - Publish from a real GPIO/LED and a DS18B20 sensor instead of the CPU temp.

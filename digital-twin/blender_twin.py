@@ -12,6 +12,8 @@ import bpy
 import math
 import time
 import json
+import os
+import sqlite3
 import datetime
 import ssl
 import urllib.request
@@ -28,6 +30,8 @@ _pub = {"led": None, "threshold": None}
 _switch = {"last_up": None, "last_state": None}
 forecast = []
 temp_history = []
+REPLAY_DB = os.environ.get("TWIN_DB", "/Users/kjde/Documents/ChatGPT/Raspberrypi_Project/digital-twin/telemetry.db")
+replay_state = {"rows": [], "idx": 0, "loaded": False}
 
 
 def on_message(_client, _userdata, msg):
@@ -154,6 +158,20 @@ def _forecast_items(self, context):
     if not forecast:
         return [("0", "Loading forecast...", "", 0)]
     return [(str(i), f"{f['dow']} {f['day']}", f"{f['hi']} / {f['lo']} C", i) for i, f in enumerate(forecast)]
+
+
+def _load_replay():
+    try:
+        _con = sqlite3.connect(REPLAY_DB)
+        rows = _con.execute(
+            "SELECT ts, temperature, led, threshold FROM telemetry ORDER BY ts"
+        ).fetchall()
+        _con.close()
+        print("replay rows:", len(rows))
+        return rows
+    except Exception as e:
+        print("replay load failed:", repr(e))
+        return []
 
 
 def ensure_objects():
@@ -305,6 +323,25 @@ def ensure_objects():
 
 def apply_twin():
     scene = bpy.context.scene
+
+    # Replay mode: feed recorded rows instead of the live MQTT state.
+    if scene.twin_replay:
+        if not replay_state["loaded"]:
+            replay_state["rows"] = _load_replay()
+            replay_state["idx"] = 0
+            replay_state["loaded"] = True
+        _rows = replay_state["rows"]
+        if _rows:
+            _r = _rows[replay_state["idx"] % len(_rows)]
+            state["temperature"] = _r[1]
+            state["led"] = bool(_r[2])
+            if _r[3] is not None:
+                state["threshold"] = _r[3]
+            replay_state["idx"] += 1
+    elif replay_state["loaded"]:
+        replay_state["rows"] = []
+        replay_state["idx"] = 0
+        replay_state["loaded"] = False
 
     # Rotor: speed proportional to temperature.
     rotor = bpy.data.objects.get("Rotor")
@@ -525,6 +562,13 @@ class TWIN_PT_control(bpy.types.Panel):
             _wf = forecast[_i]
             box.label(text=f"{_wf['dow']} {_wf['day']}: {_wf['hi']}/{_wf['lo']} C  (code {_wf['code']})")
 
+        box = layout.box()
+        box.label(text="Replay", icon="PLAY")
+        box.prop(scene, "twin_replay", text="Replay recorded session")
+        if scene.twin_replay and replay_state["rows"]:
+            _n = len(replay_state["rows"])
+            box.label(text=f"row {replay_state['idx'] % _n + 1} / {_n}")
+
         layout.separator()
         layout.label(text="Changes are sent to the Pi", icon="INFO")
 
@@ -533,6 +577,10 @@ def register():
     if not hasattr(bpy.types.Scene, "twin_led_on"):
         bpy.types.Scene.twin_led_on = bpy.props.BoolProperty(
             name="LED on", description="Turn the Pi LED on/off", default=False
+        )
+    if not hasattr(bpy.types.Scene, "twin_replay"):
+        bpy.types.Scene.twin_replay = bpy.props.BoolProperty(
+            name="Replay", description="Replay a recorded session from the SQLite log", default=False
         )
     if not hasattr(bpy.types.Scene, "twin_day"):
         bpy.types.Scene.twin_day = bpy.props.EnumProperty(

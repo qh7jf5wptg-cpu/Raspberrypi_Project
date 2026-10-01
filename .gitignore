@@ -43,3 +43,8 @@ CMakeLists.txt.user
 .idea/
 *.swp
 *~
+
+# SQLite telemetry logs
+*.db
+*.db-wal
+*.db-shm
