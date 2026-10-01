@@ -246,12 +246,17 @@ PAGE = """<!doctype html>
   .value { font-size: 32px; font-weight: 700; margin: 6px 0 10px; color: #55606c; }
   #temp.value { color: #e6e9ee; }
   #led.on { color: #3ba55d; }
-  #mode.value.on { color: #cdd6e0; }
+  #mode.auto { color: #3ba55d; }
+  #mode.manual { color: #e0b32a; }
   .row { display: flex; gap: 8px; align-items: center; }
   .btn { flex: 1; background: #222a33; color: #cdd6e0; border: 1px solid #2e3843;
          border-radius: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
   .btn:hover { background: #2b3540; }
   .btn.active { background: #1f6f3d; border-color: #3ba55d; color: #fff; }
+  .btn.active-auto { background: #1f6f3d; border-color: #3ba55d; color: #fff;
+                     box-shadow: 0 0 10px rgba(59,165,93,.35); }
+  .btn.active-manual { background: #7a5c0e; border-color: #e0b32a; color: #fff;
+                       box-shadow: 0 0 10px rgba(224,179,42,.30); }
   .btn.attention { background: #7a5a12; border-color: #d7a925; color: #fff; }
   input[type=range] { width: 100%; margin: 4px 0 10px; accent-color: #3ba55d; }
   .muted { font-size: 12px; color: #7f8c9b; }
@@ -318,9 +323,10 @@ PAGE = """<!doctype html>
       <div class="label">Mode</div>
       <div class="value" id="mode">--</div>
       <div class="row">
-        <button class="btn" id="btnManual" onclick="send('mode','manual')">Manual</button>
-        <button class="btn" id="btnAuto"   onclick="send('mode','auto')">Auto</button>
+        <button class="btn" id="btnManual" onclick="setMode('manual')">Manual</button>
+        <button class="btn" id="btnAuto"   onclick="setMode('auto')">Auto</button>
       </div>
+      <div class="muted" id="modehint"></div>
     </div>
   </div>
 
@@ -364,7 +370,9 @@ try {
         scales: {
           x: { ticks: { color: '#7f8c9b', maxTicksLimit: 6, maxRotation: 0 },
                grid: { color: 'rgba(35,42,51,.6)' } },
-          y: { ticks: { color: '#7f8c9b', callback: v => v + '\u00b0' },
+          y: { grace: '8%',
+               ticks: { color: '#7f8c9b',
+                        callback: v => Number(v).toFixed(1) + '\u00b0' },
                grid: { color: 'rgba(35,42,51,.6)' } }
         },
         plugins: { legend: { labels: { color: '#9fb0c0' } } }
@@ -379,6 +387,7 @@ try {
 const DEG = '\u00b0C';
 let lastState = null;
 let sliderTouched = false;
+let localMode = null;   // what we last asked for, until the Pi reports its own
 
 function fmt(value, unit) {
   return value == null ? '--' : value.toFixed(1) + unit;
@@ -438,6 +447,29 @@ async function setThreshold() {
     const button = document.getElementById('btnSet');
     button.textContent = 'Set';
     button.className = 'btn';
+  }
+}
+
+// Green = auto, yellow = manual, so the card colour tells you the mode at a
+// glance. Before the Pi publishes machine/mode we still show the last choice
+// you made instead of a bare "--".
+function applyMode(value) {
+  const shown = document.getElementById('mode');
+  if (value === 'auto') { shown.textContent = 'Auto'; shown.className = 'value auto'; }
+  else if (value === 'manual') { shown.textContent = 'Manual'; shown.className = 'value manual'; }
+  else { shown.textContent = '--'; shown.className = 'value'; }
+  document.getElementById('btnAuto').className = 'btn' + (value === 'auto' ? ' active-auto' : '');
+  document.getElementById('btnManual').className = 'btn' + (value === 'manual' ? ' active-manual' : '');
+  document.getElementById('modehint').textContent =
+    value ? '' : 'waiting for the Pi to report its mode (needs the rebuilt app)';
+}
+
+async function setMode(value) {
+  const result = await send('mode', value);
+  if (result.ok) {
+    localMode = value;
+    applyMode(value);
+    note('Mode set to ' + value + '.');
   }
 }
 
@@ -525,12 +557,7 @@ async function tick() {
     document.getElementById('btnOn').className = 'btn' + (state.led === 1 ? ' active' : '');
     document.getElementById('btnOff').className = 'btn' + (state.led === 0 ? ' active' : '');
 
-    const mode = document.getElementById('mode');
-    if (state.mode === 'auto') { mode.textContent = 'Auto'; mode.className = 'value on'; }
-    else if (state.mode === 'manual') { mode.textContent = 'Manual'; mode.className = 'value on'; }
-    else { mode.textContent = '--'; mode.className = 'value'; }
-    document.getElementById('btnAuto').className = 'btn' + (state.mode === 'auto' ? ' active' : '');
-    document.getElementById('btnManual').className = 'btn' + (state.mode === 'manual' ? ' active' : '');
+    applyMode(state.mode || localMode);
 
     if (!sliderTouched && state.threshold != null) {
       const range = document.getElementById('range');
