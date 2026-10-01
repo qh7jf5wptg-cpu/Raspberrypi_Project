@@ -98,6 +98,30 @@ LED, alarm lamp, and temperature bar graph all follow the recording.
 The database path defaults to `digital-twin/telemetry.db`. Override it with the
 `TWIN_DB` environment variable before launching Blender if your log is elsewhere.
 
+## 6. Live web dashboard (Mac)
+
+A small web page that shows the live temperature, LED state and alarm threshold
+with a rolling chart — and lets you control the LED, the mode and the threshold
+from the browser. Everything goes through the same MQTT topics, so the Qt app,
+the Blender twin and this page always agree.
+
+```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
+python3 dashboard.py
+```
+
+Then open <http://localhost:8000>.
+
+The page is only served on your Mac (`127.0.0.1`), so nothing on the network can
+reach it. If `python3` reports `No module named 'paho'`, install the client once:
+
+```sh
+python3 -m pip install --user --break-system-packages paho-mqtt
+```
+
+Settings come from environment variables: `MQTT_BROKER` (default `localhost`),
+`MQTT_PORT` (default `1883`) and `DASHBOARD_PORT` (default `8000`).
+
 ## Next steps
 
 - Publish from a real GPIO/LED and a DS18B20 sensor instead of the CPU temp.
