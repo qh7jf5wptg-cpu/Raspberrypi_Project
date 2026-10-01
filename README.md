@@ -8,5 +8,7 @@ Two connected projects that form a bidirectional digital twin of a Raspberry Pi:
 - **digital-twin** — a Blender scene plus Python scripts that mirror the Pi's
   live state over MQTT (temperature text, heat bar, spinning rotor, LED color)
   and send control commands back to it.
+- **mac-nat** — the Mac helper that shares the Mac's internet with the Pi over
+  the direct Ethernet cable, so Raspberry Pi Connect keeps working.
 
 See each folder's README for setup and usage.
