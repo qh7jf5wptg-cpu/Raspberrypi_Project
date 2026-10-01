@@ -296,7 +296,7 @@ def ensure_objects():
 
     # --- Alarm lamp (flashes red when temp exceeds threshold) ---
     if "AlarmLight" not in bpy.data.objects:
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.06, location=(-0.95, 0.0, 0.24))
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.07, location=(-0.95, 0.0, 0.24))
         al = bpy.context.object
         al.name = "AlarmLight"
         mat = bpy.data.materials.new("AlarmLightMat")
@@ -307,6 +307,16 @@ def ensure_objects():
             bsdf.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
             bsdf.inputs["Emission Strength"].default_value = 0.0
         al.data.materials.append(mat)
+
+    # A red point light that fills the scene whenever the alarm is on, so the
+    # whole model glows red rather than relying on one small sphere.
+    if "AlarmGlow" not in bpy.data.objects:
+        light = bpy.data.lights.new("AlarmGlow", type="POINT")
+        light.color = (1.0, 0.08, 0.05)
+        light.energy = 0.0
+        glow = bpy.data.objects.new("AlarmGlow", light)
+        glow.location = (-0.95, 0.0, 0.55)
+        bpy.context.collection.objects.link(glow)
 
     # --- 3D temperature history bars ---
     if not any(o.name.startswith("TempBar") for o in bpy.data.objects):
@@ -370,10 +380,29 @@ def apply_twin():
             _switch["last_up"] = state["led"]
             _switch["last_state"] = state["led"]
 
-    # Temperature text readout.
+    # Temperature text readout: red and pulsing when over the threshold.
     txt = bpy.data.objects.get("TempText")
     if txt:
+        over = state["temperature"] > state["threshold"]
         txt.data.body = f"{state['temperature']:.1f} °C"
+        color = (1.0, 0.12, 0.10, 1.0) if over else (1.0, 0.9, 0.2, 1.0)
+        strength = 6.0 if over else 3.0
+        txt.color = color
+        if txt.data.materials:
+            mat = txt.data.materials[0]
+            mat.diffuse_color = color
+            if mat.use_nodes:
+                for node in mat.node_tree.nodes:
+                    if node.type == "BSDF_PRINCIPLED":
+                        node.inputs["Base Color"].default_value = color
+                        node.inputs["Emission Color"].default_value = color
+                        node.inputs["Emission Strength"].default_value = strength
+                        break
+        if over:
+            pulse = 0.65 * (1.0 + 0.12 * math.sin(time.time() * 6))
+            txt.scale = (pulse, pulse, pulse)
+        else:
+            txt.scale = (0.65, 0.65, 0.65)
 
     # Heat bar color (blue -> red).
     _set_material_color("Heatbar", _heat_color(state["temperature"]))
@@ -482,11 +511,21 @@ def apply_twin():
     if al:
         strength = (0.5 + 0.5 * abs(math.sin(anim * 5))) * 6.0 if alarm else 0.0
         al.color = (1.0, 0.12, 0.12, 1.0) if alarm else (0.16, 0.16, 0.16, 1.0)
+        if alarm:
+            pulse = 1.0 + 0.4 * abs(math.sin(anim * 5))
+            al.scale = (pulse, pulse, pulse)
+        else:
+            al.scale = (1.0, 1.0, 1.0)
         if al.data.materials and al.data.materials[0].use_nodes:
             for node in al.data.materials[0].node_tree.nodes:
                 if node.type == "BSDF_PRINCIPLED":
                     node.inputs["Emission Strength"].default_value = strength
                     break
+
+    # Red point light: off normally, pulsing red light over the model on alarm.
+    glow = bpy.data.objects.get("AlarmGlow")
+    if glow and glow.data:
+        glow.data.energy = (120.0 + 40.0 * math.sin(anim * 5)) if alarm else 0.0
 
     # Day/night lighting based on the real local hour.
     hour = datetime.datetime.now().hour
@@ -547,6 +586,9 @@ class TWIN_PT_control(bpy.types.Panel):
         row = box.row()
         row.label(text="Threshold")
         row.label(text=f"{state['threshold']:.1f} °C")
+        row = box.row()
+        row.label(text="Alarm")
+        row.label(text="OVER" if state["temperature"] > state["threshold"] else "OK")
 
         box = layout.box()
         box.label(text="Control", icon="TOOL_SETTINGS")
