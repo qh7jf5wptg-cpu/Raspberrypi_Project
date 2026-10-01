@@ -89,6 +89,19 @@ def _heat_color(t):
     return (x, 0.25 * (1.0 - x) + 0.05, 1.0 - x, 1.0)
 
 
+def _set_bar_color(bar, color):
+    """Color a history bar in both the viewport and its material."""
+    bar.color = color
+    if bar.data.materials:
+        mat = bar.data.materials[0]
+        mat.diffuse_color = color
+        if mat.use_nodes:
+            for node in mat.node_tree.nodes:
+                if node.type == "BSDF_PRINCIPLED":
+                    node.inputs["Base Color"].default_value = color
+                    break
+
+
 def _weather_kind(code):
     if code == 0:
         return "sun"
@@ -320,15 +333,17 @@ def ensure_objects():
 
     # --- 3D temperature history bars ---
     if not any(o.name.startswith("TempBar") for o in bpy.data.objects):
-        bar_mat = bpy.data.materials.new("TempBarMat")
-        bar_mat.use_nodes = True
-        bar_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.2, 0.6, 0.9, 1.0)
         for i in range(24):
             bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.84 + i * 0.073, -0.95, 0.1))
             b = bpy.context.object
             b.name = f"TempBar{i}"
             b.scale = (0.028, 0.028, 0.1)
-            b.data.materials.append(bar_mat)
+            mat = bpy.data.materials.new(f"TempBar{i}Mat")
+            mat.use_nodes = True
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            if bsdf:
+                bsdf.inputs["Base Color"].default_value = (0.2, 0.6, 0.9, 1.0)
+            b.data.materials.append(mat)
 
 
 def apply_twin():
@@ -503,7 +518,8 @@ def apply_twin():
         h = max(0.04, min(1.1, (t - 30.0) * 0.022))
         b.scale.z = h
         b.location.z = h / 2.0
-        b.color = _heat_color(t)
+        over = t > state["threshold"]
+        _set_bar_color(b, (1.0, 0.15, 0.10, 1.0) if over else _heat_color(t))
 
     # Alarm lamp: flash red when temperature exceeds the threshold.
     alarm = state["temperature"] > state["threshold"]
