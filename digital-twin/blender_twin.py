@@ -321,11 +321,11 @@ def ensure_objects():
             bsdf.inputs["Emission Strength"].default_value = 0.0
         al.data.materials.append(mat)
 
-    # A red point light that fills the scene whenever the alarm is on, so the
-    # whole model glows red rather than relying on one small sphere.
+    # A point light that fills the scene with the alarm colour: red when over
+    # the threshold, warm yellow when under - matching the temperature text.
     if "AlarmGlow" not in bpy.data.objects:
         light = bpy.data.lights.new("AlarmGlow", type="POINT")
-        light.color = (1.0, 0.08, 0.05)
+        light.color = (1.0, 0.9, 0.2)
         light.energy = 0.0
         glow = bpy.data.objects.new("AlarmGlow", light)
         glow.location = (-0.95, 0.0, 0.55)
@@ -538,10 +538,16 @@ def apply_twin():
                     node.inputs["Emission Strength"].default_value = strength
                     break
 
-    # Red point light: off normally, pulsing red light over the model on alarm.
+    # Alarm point light: red and bright when over, warm yellow when under,
+    # so the whole model changes colour with the alarm state like the text.
     glow = bpy.data.objects.get("AlarmGlow")
     if glow and glow.data:
-        glow.data.energy = (120.0 + 40.0 * math.sin(anim * 5)) if alarm else 0.0
+        if alarm:
+            glow.data.color = (1.0, 0.08, 0.05)
+            glow.data.energy = 120.0 + 40.0 * math.sin(anim * 5)
+        else:
+            glow.data.color = (1.0, 0.9, 0.2)
+            glow.data.energy = 30.0
 
     # Day/night lighting based on the real local hour.
     hour = datetime.datetime.now().hour
