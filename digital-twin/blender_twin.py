@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Blender digital-twin driver (bidirectional).
 
-Shows the Pi's live state (temperature text, heat bar, spinning rotor, LED
-color) and lets you control the Pi from a Blender sidebar panel (LED toggle +
-threshold slider).
+Shows the Pi's live state (temperature text, spinning rotor, LED color) and
+lets you control the Pi from a Blender sidebar panel (LED toggle + threshold
+slider).
 
 Run from Blender's Scripting workspace (Run Script).
 """
@@ -45,19 +45,6 @@ def on_message(_client, _userdata, msg):
             state["threshold"] = float(payload)
     except (ValueError, UnicodeDecodeError):
         pass
-
-
-def _set_material_color(name, color):
-    mat = bpy.data.materials.get(name)
-    if mat and mat.use_nodes:
-        for node in mat.node_tree.nodes:
-            if node.type == "BSDF_PRINCIPLED":
-                node.inputs["Base Color"].default_value = color
-                break
-        mat.diffuse_color = color
-    obj = bpy.data.objects.get(name)
-    if obj:
-        obj.color = color
 
 
 def _set_led_material(on):
@@ -188,7 +175,7 @@ def _load_replay():
 
 
 def ensure_objects():
-    """Create the temperature text and heat bar if the .blend lacks them."""
+    """Create the temperature text if the .blend lacks it."""
     # Temperature text: create if missing, then make it big and bright.
     obj = bpy.data.objects.get("TempText")
     if obj is None:
@@ -214,18 +201,6 @@ def ensure_objects():
         obj.data.materials[0] = mat
     else:
         obj.data.materials.append(mat)
-
-    if "Heatbar" not in bpy.data.objects:
-        mat = bpy.data.materials.new("Heatbar")
-        mat.use_nodes = True
-        bsdf = mat.node_tree.nodes.get("Principled BSDF")
-        if bsdf:
-            bsdf.inputs["Base Color"].default_value = (0.10, 0.35, 0.90, 1.0)
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(1.55, 0.0, 0.22))
-        heat = bpy.context.object
-        heat.name = "Heatbar"
-        heat.scale = (0.13, 0.13, 0.4)
-        heat.data.materials.append(mat)
 
     # --- Weather preview objects ---
     if "WeatherSun" not in bpy.data.objects:
@@ -386,9 +361,6 @@ def apply_twin():
             txt.scale = (pulse, pulse, pulse)
         else:
             txt.scale = (0.65, 0.65, 0.65)
-
-    # Heat bar color (blue -> red).
-    _set_material_color("Heatbar", _heat_color(state["temperature"]))
 
     # Publish control commands only when the panel values change.
     if _client:

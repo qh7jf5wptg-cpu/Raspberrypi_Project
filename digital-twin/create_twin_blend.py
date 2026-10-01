@@ -32,7 +32,6 @@ def make_material(name, color, metallic=0.0, roughness=0.5):
 led_mat = make_material("LED", (0.05, 0.05, 0.05), roughness=0.3)
 body_mat = make_material("MachineBody", (0.22, 0.26, 0.30), metallic=0.4, roughness=0.45)
 rotor_mat = make_material("RotorMetal", (0.85, 0.20, 0.20), metallic=0.7, roughness=0.3)
-heat_mat = make_material("Heatbar", (0.10, 0.35, 0.90), roughness=0.4)
 
 # Machine body.
 bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
@@ -62,13 +61,6 @@ temp_obj = bpy.data.objects.new("TempText", temp_text)
 temp_obj.location = (0.0, 0.0, 0.85)
 temp_obj.scale = (0.35, 0.35, 0.35)
 bpy.context.collection.objects.link(temp_obj)
-
-# Heat bar: a thin vertical strip whose color maps to temperature.
-bpy.ops.mesh.primitive_cube_add(size=1, location=(1.55, 0.0, 0.22))
-heat = bpy.context.object
-heat.name = "Heatbar"
-heat.scale = (0.07, 0.07, 0.34)
-heat.data.materials.append(heat_mat)
 
 # Camera.
 cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
