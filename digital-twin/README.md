@@ -140,10 +140,11 @@ The database path defaults to `digital-twin/telemetry.db`. Override it with the
 
 ## 6. Live web dashboard (Mac)
 
-A small web page that shows the live temperature, LED state and alarm threshold
-with a rolling chart — and lets you control the LED, the mode and the threshold
-from the browser. Everything goes through the same MQTT topics, so the Qt app,
-the Blender twin and this page always agree.
+A small web page showing the live temperature, LED state, mode and alarm
+threshold, a rolling chart, and the current time plus 7-day weather forecast
+for Helsinki. It also lets you control the LED, the mode and the threshold from
+the browser. Everything goes through the same MQTT topics, so the Qt app, the
+Blender twin and this page always agree.
 
 ```sh
 cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
@@ -151,6 +152,30 @@ python3 dashboard.py
 ```
 
 Then open <http://localhost:8000>.
+
+### Reading the two threshold numbers
+
+The **big number** is what the Pi is actually using. The **slider** is the value
+you want. Move the slider and the button changes to `Set 72 °C` so you can see a
+change is pending; press it and the result appears in the message line below the
+cards. The slider only follows the Pi again once you have sent your change, so
+it never fights you while you are adjusting it.
+
+Changing the mode needs the Pi app rebuilt: `machine/mode` is published by
+`ledcontroller.cpp`. Until the Pi runs a build that includes it, the mode card
+shows `--`.
+
+### After a `git pull`
+
+Stop the dashboard with Ctrl+C and start it again — Python reads the file once
+at startup, so a running copy keeps using the code it was launched with. If the
+port is still busy, an older dashboard is still running somewhere.
+
+### Where the weather comes from
+
+Open-Meteo (`api.open-meteo.com`), refreshed every 30 minutes. It only needs
+internet on the Mac, and the page keeps working without it — the forecast area
+just stays empty and retries every minute.
 
 The page is only served on your Mac (`127.0.0.1`), so nothing on the network can
 reach it. If `python3` reports `No module named 'paho'`, install the client once:

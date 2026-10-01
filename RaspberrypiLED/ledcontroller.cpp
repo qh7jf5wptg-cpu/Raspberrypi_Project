@@ -155,10 +155,12 @@ void LedController::publishState()
     const QByteArray temp = QByteArray::number(m_temperature, 'f', 1);
     const QByteArray led = m_ledOn ? QByteArray("1") : QByteArray("0");
     const QByteArray threshold = QByteArray::number(m_threshold, 'f', 1);
+    const QByteArray mode = m_autoMode ? QByteArray("auto") : QByteArray("manual");
 
     mosquitto_publish(m_mosq, nullptr, "machine/temperature", temp.size(), temp.constData(), 0, false);
     mosquitto_publish(m_mosq, nullptr, "machine/led", led.size(), led.constData(), 0, false);
     mosquitto_publish(m_mosq, nullptr, "machine/threshold", threshold.size(), threshold.constData(), 0, false);
+    mosquitto_publish(m_mosq, nullptr, "machine/mode", mode.size(), mode.constData(), 0, false);
 }
 
 double LedController::readCpuTempC()
