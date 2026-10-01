@@ -105,13 +105,29 @@ It creates `telemetry.db` and writes one row per second:
 | `led` | 1 / 0 |
 | `threshold` | threshold (deg C) |
 
-Stop with Ctrl+C. Inspect the log with the `sqlite3` CLI:
+Stop with Ctrl+C — it prints a summary and the ready-to-paste query commands on
+the way out. You can also ask for that summary at any time, without knowing any
+SQL at all:
 
 ```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
+python3 telemetry_logger.py --stats
+```
+
+Or query it yourself with the `sqlite3` CLI. The database lives **inside the
+project folder**, so `cd` there first:
+
+```sh
+cd ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin
 sqlite3 telemetry.db ".tables"
 sqlite3 telemetry.db "SELECT COUNT(*), ROUND(MIN(temperature),1), ROUND(MAX(temperature),1) FROM telemetry;"
 sqlite3 telemetry.db "SELECT * FROM telemetry ORDER BY ts DESC LIMIT 5;"
 ```
+
+> Run `sqlite3 telemetry.db` from any other folder and it quietly creates an
+> empty database *there*, then every query fails with `no such table:
+> telemetry`. If you are not sure where you are, use the full path:
+> `sqlite3 ~/Documents/ChatGPT/Raspberrypi_Project/digital-twin/telemetry.db`
 
 ### Replay it in Blender
 
