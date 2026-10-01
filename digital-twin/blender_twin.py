@@ -27,6 +27,7 @@ _client = None
 _pub = {"led": None, "threshold": None}
 _switch = {"last_up": None, "last_state": None}
 forecast = []
+temp_history = []
 
 
 def on_message(_client, _userdata, msg):
@@ -275,6 +276,32 @@ def ensure_objects():
         obj.data.materials.append(mat)
         bpy.context.collection.objects.link(obj)
 
+    # --- Alarm lamp (flashes red when temp exceeds threshold) ---
+    if "AlarmLight" not in bpy.data.objects:
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.06, location=(-0.95, 0.0, 0.24))
+        al = bpy.context.object
+        al.name = "AlarmLight"
+        mat = bpy.data.materials.new("AlarmLightMat")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = (1.0, 0.1, 0.1, 1.0)
+            bsdf.inputs["Emission Color"].default_value = (1.0, 0.0, 0.0, 1.0)
+            bsdf.inputs["Emission Strength"].default_value = 0.0
+        al.data.materials.append(mat)
+
+    # --- 3D temperature history bars ---
+    if not any(o.name.startswith("TempBar") for o in bpy.data.objects):
+        bar_mat = bpy.data.materials.new("TempBarMat")
+        bar_mat.use_nodes = True
+        bar_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.2, 0.6, 0.9, 1.0)
+        for i in range(24):
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(-0.84 + i * 0.073, -0.95, 0.1))
+            b = bpy.context.object
+            b.name = f"TempBar{i}"
+            b.scale = (0.028, 0.028, 0.1)
+            b.data.materials.append(bar_mat)
+
 
 def apply_twin():
     scene = bpy.context.scene
@@ -399,6 +426,54 @@ def apply_twin():
                         node.inputs["Emission Color"].default_value = color
                         node.inputs["Emission Strength"].default_value = 1.0
                         break
+
+    # Temperature history for the 3D bar graph.
+    temp_history.append(state["temperature"])
+    while len(temp_history) > 24:
+        temp_history.pop(0)
+    bars = [o for o in bpy.data.objects if o.name.startswith("TempBar")]
+    for i, b in enumerate(bars):
+        t = temp_history[i] if i < len(temp_history) else 30.0
+        h = max(0.04, min(1.1, (t - 30.0) * 0.022))
+        b.scale.z = h
+        b.location.z = h / 2.0
+        b.color = _heat_color(t)
+
+    # Alarm lamp: flash red when temperature exceeds the threshold.
+    alarm = state["temperature"] > state["threshold"]
+    al = bpy.data.objects.get("AlarmLight")
+    if al:
+        strength = (0.5 + 0.5 * abs(math.sin(anim * 5))) * 6.0 if alarm else 0.0
+        al.color = (1.0, 0.12, 0.12, 1.0) if alarm else (0.16, 0.16, 0.16, 1.0)
+        if al.data.materials and al.data.materials[0].use_nodes:
+            for node in al.data.materials[0].node_tree.nodes:
+                if node.type == "BSDF_PRINCIPLED":
+                    node.inputs["Emission Strength"].default_value = strength
+                    break
+
+    # Day/night lighting based on the real local hour.
+    hour = datetime.datetime.now().hour
+    sun = bpy.data.objects.get("Sun")
+    if sun and sun.data:
+        if 6 <= hour < 18:
+            sun.data.energy = 4.0
+            sun.data.color = (1.0, 0.96, 0.9)
+        elif 18 <= hour < 21 or 5 <= hour < 6:
+            sun.data.energy = 2.2
+            sun.data.color = (1.0, 0.72, 0.45)
+        else:
+            sun.data.energy = 0.7
+            sun.data.color = (0.5, 0.6, 0.95)
+    world = bpy.context.scene.world
+    if world and world.use_nodes:
+        bg = world.node_tree.nodes.get("Background")
+        if bg:
+            if 6 <= hour < 18:
+                bg.inputs["Color"].default_value = (0.55, 0.6, 0.68, 1.0)
+            elif 18 <= hour < 21 or 5 <= hour < 6:
+                bg.inputs["Color"].default_value = (0.3, 0.24, 0.27, 1.0)
+            else:
+                bg.inputs["Color"].default_value = (0.04, 0.05, 0.11, 1.0)
 
     return 0.5
 
