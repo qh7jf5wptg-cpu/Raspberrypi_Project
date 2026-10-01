@@ -199,28 +199,37 @@ PAGE = """<!doctype html>
 </div>
 
 <script>
-const chart = new Chart(document.getElementById('chart'), {
-  type: 'line',
-  data: { labels: [], datasets: [{
-    label: 'CPU temperature (\\u00b0C)',
-    data: [],
-    borderColor: '#3ba55d',
-    backgroundColor: 'rgba(59,165,93,.15)',
-    fill: true, tension: .35, pointRadius: 0, borderWidth: 2
-  }] },
-  options: {
-    animation: false,
-    responsive: true,
-    interaction: { intersect: false, mode: 'index' },
-    scales: {
-      x: { ticks: { color: '#7f8c9b', maxTicksLimit: 6, maxRotation: 0 },
-           grid: { color: 'rgba(35,42,51,.6)' } },
-      y: { ticks: { color: '#7f8c9b', callback: v => v + '\\u00b0' },
-           grid: { color: 'rgba(35,42,51,.6)' } }
-    },
-    plugins: { legend: { labels: { color: '#9fb0c0' } } }
+// The chart library comes from a CDN. If there is no internet the cards still
+// work -- we just skip the graph.
+let chart = null;
+try {
+  if (typeof Chart !== 'undefined') {
+    chart = new Chart(document.getElementById('chart'), {
+      type: 'line',
+      data: { labels: [], datasets: [{
+        label: 'CPU temperature (\\u00b0C)',
+        data: [],
+        borderColor: '#3ba55d',
+        backgroundColor: 'rgba(59,165,93,.15)',
+        fill: true, tension: .35, pointRadius: 0, borderWidth: 2
+      }] },
+      options: {
+        animation: false,
+        responsive: true,
+        interaction: { intersect: false, mode: 'index' },
+        scales: {
+          x: { ticks: { color: '#7f8c9b', maxTicksLimit: 6, maxRotation: 0 },
+               grid: { color: 'rgba(35,42,51,.6)' } },
+          y: { ticks: { color: '#7f8c9b', callback: v => v + '\\u00b0' },
+               grid: { color: 'rgba(35,42,51,.6)' } }
+        },
+        plugins: { legend: { labels: { color: '#9fb0c0' } } }
+      }
+    });
+  } else {
+    document.getElementById('chart').replaceWith('chart needs internet (cdn.jsdelivr.net)');
   }
-});
+} catch (e) {}
 
 let lastState = null;
 
@@ -281,9 +290,11 @@ async function tick() {
     document.getElementById('savg').textContent = fmt(d.stats.avg, ' \\u00b0C');
     document.getElementById('scount').textContent = d.stats.count;
 
-    chart.data.labels = d.history.map(h => fmtTime(h.t));
-    chart.data.datasets[0].data = d.history.map(h => h.v);
-    chart.update();
+    if (chart) {
+      chart.data.labels = d.history.map(h => fmtTime(h.t));
+      chart.data.datasets[0].data = d.history.map(h => h.v);
+      chart.update();
+    }
   } catch (e) {
     setConn(false);
   }
