@@ -248,6 +248,13 @@ PAGE = """<!doctype html>
   #led.on { color: #3ba55d; }
   #mode.auto { color: #3ba55d; }
   #mode.manual { color: #e0b32a; }
+  #temp.over { color: #e06a5c; }
+  .card.over { border-color: #e05c4f; background: #1d1617; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600;
+           letter-spacing: .04em; padding: 2px 8px; border-radius: 6px;
+           color: #7f8c9b; background: #1c2229; border: 1px solid #262e37; }
+  .badge.ok { color: #bdeccc; background: #174a2c; border-color: #2a7a4b; }
+  .badge.over { color: #ffd7d2; background: #6b2520; border-color: #c24b3f; }
   .row { display: flex; gap: 8px; align-items: center; }
   .btn { flex: 1; background: #222a33; color: #cdd6e0; border: 1px solid #2e3843;
          border-radius: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
@@ -293,10 +300,10 @@ PAGE = """<!doctype html>
   </header>
 
   <div class="cards">
-    <div class="card">
+    <div class="card" id="tempCard">
       <div class="label">Temperature</div>
       <div class="value" id="temp">--</div>
-      <div class="muted">CPU core, one sample per second</div>
+      <div class="badge" id="tempBadge">&nbsp;</div>
     </div>
 
     <div class="card">
@@ -547,8 +554,31 @@ async function tick() {
     lastState = state;
     setConn(data.connected);
 
-    document.getElementById('temp').textContent = fmt(state.temperature, ' ' + DEG);
-    document.getElementById('thr').textContent = fmt(state.threshold, ' ' + DEG);
+    const temp = state.temperature;
+    const thr = state.threshold;
+    document.getElementById('temp').textContent = fmt(temp, ' ' + DEG);
+    document.getElementById('thr').textContent = fmt(thr, ' ' + DEG);
+
+    const over = (temp != null && thr != null) ? temp > thr : null;
+    const tempEl = document.getElementById('temp');
+    const tempCard = document.getElementById('tempCard');
+    const badge = document.getElementById('tempBadge');
+    if (over === true) {
+      tempEl.className = 'value over';
+      tempCard.className = 'card over';
+      badge.textContent = 'over threshold (' + Math.round(thr) + ' ' + DEG + ')';
+      badge.className = 'badge over';
+    } else if (over === false) {
+      tempEl.className = 'value';
+      tempCard.className = 'card';
+      badge.textContent = 'under threshold (' + Math.round(thr) + ' ' + DEG + ')';
+      badge.className = 'badge ok';
+    } else {
+      tempEl.className = 'value';
+      tempCard.className = 'card';
+      badge.textContent = 'threshold ' + (thr == null ? '--' : Math.round(thr) + ' ' + DEG);
+      badge.className = 'badge';
+    }
 
     const led = document.getElementById('led');
     if (state.led === 1) { led.textContent = 'ON'; led.className = 'value on'; }
