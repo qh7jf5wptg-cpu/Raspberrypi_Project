@@ -4,9 +4,9 @@ import QtQuick.Controls.Basic
 ApplicationWindow {
     id: window
     width: 950
-    height: 1040
+    height: 860
     minimumWidth: 640
-    minimumHeight: 940
+    minimumHeight: 820
     visible: true
     title: qsTr("Raspberrypi LED")
 
@@ -60,7 +60,9 @@ ApplicationWindow {
     }
 
     Column {
-        anchors.centerIn: parent
+        anchors.top: parent.top
+        anchors.topMargin: 60
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 18
 
         Canvas {
