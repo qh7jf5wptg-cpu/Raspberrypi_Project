@@ -57,7 +57,7 @@ private:
 
     QTimer m_timer;
     double m_temperature = 0.0;
-    double m_threshold = 60.0;
+    double m_threshold = 50.0;
     bool m_autoMode = true;
     bool m_manualLedOn = false;
     bool m_ledOn = false;
