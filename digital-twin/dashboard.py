@@ -3,7 +3,8 @@
 
 Serves a small web page on http://localhost:8000 showing the live CPU
 temperature, LED state, mode and alarm threshold -- with a rolling chart, a
-control panel, and the current time and 7-day weather forecast for Helsinki.
+	control panel, and the current time and 7-day weather forecast for Helsinki
+	and Brussels.
 It talks to the same MQTT broker as the Qt app and the Blender twin, so all
 three stay in sync.
 
@@ -37,6 +38,8 @@ FORECAST_REFRESH = 1800    # re-download the weather every 30 minutes
 
 HELSINKI_LAT = 60.1699
 HELSINKI_LON = 24.9384
+BRUSSELS_LAT = 50.8503
+BRUSSELS_LON = 4.3517
 MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.",
           "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."]
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -142,15 +145,15 @@ def _fetch_json(url):
             return json.loads(response.read().decode("utf-8"))
 
 
-def fetch_forecast():
+def fetch_forecast(lat, lon, tz):
     url = (
         "https://api.open-meteo.com/v1/forecast"
         "?latitude=%s&longitude=%s"
         "&current=temperature_2m,weather_code"
         "&daily=temperature_2m_max,temperature_2m_min,weather_code,"
         "precipitation_probability_max"
-        "&timezone=Europe%%2FHelsinki&forecast_days=7"
-        % (HELSINKI_LAT, HELSINKI_LON)
+        "&timezone=%s&forecast_days=7"
+        % (lat, lon, tz.replace("/", "%2F"))
     )
     try:
         data = _fetch_json(url)
@@ -202,10 +205,11 @@ def fetch_forecast():
 def forecast_loop():
     global _forecast
     while True:
-        result = fetch_forecast()
-        if result:
+        helsinki = fetch_forecast(HELSINKI_LAT, HELSINKI_LON, "Europe/Helsinki")
+        brussels = fetch_forecast(BRUSSELS_LAT, BRUSSELS_LON, "Europe/Brussels")
+        if helsinki or brussels:
             with _lock:
-                _forecast = result
+                _forecast = {"helsinki": helsinki, "brussels": brussels}
             time.sleep(FORECAST_REFRESH)
         else:
             # Keep whatever we already have, and try again soon.
@@ -350,9 +354,17 @@ PAGE = """<!doctype html>
   <section class="weather">
     <div class="weather-head">
       <h2>Helsinki &mdash; 7 day forecast</h2>
-      <div class="muted" id="nowline">loading...</div>
+      <div class="muted" id="nowline-helsinki">loading...</div>
     </div>
-    <div class="days" id="days"></div>
+    <div class="days" id="days-helsinki"></div>
+  </section>
+
+  <section class="weather">
+    <div class="weather-head">
+      <h2>Brussels &mdash; 7 day forecast</h2>
+      <div class="muted" id="nowline-brussels">loading...</div>
+    </div>
+    <div class="days" id="days-brussels"></div>
   </section>
 </div>
 
@@ -516,11 +528,11 @@ function weatherName(code) {
   return 'unknown';
 }
 
-function renderForecast(data) {
-  const days = document.getElementById('days');
-  const nowline = document.getElementById('nowline');
+function renderForecast(data, daysId, nowId) {
+  const days = document.getElementById(daysId);
+  const nowline = document.getElementById(nowId);
   if (!data || !data.days || !data.days.length) {
-    nowline.textContent = 'loading Helsinki forecast...';
+    nowline.textContent = 'loading forecast...';
     days.innerHTML = '';
     return;
   }
@@ -606,7 +618,8 @@ async function tick() {
       chart.update();
     }
 
-    renderForecast(data.forecast);
+    renderForecast(data.forecast ? data.forecast.helsinki : null, 'days-helsinki', 'nowline-helsinki');
+    renderForecast(data.forecast ? data.forecast.brussels : null, 'days-brussels', 'nowline-brussels');
   } catch (e) {
     setConn(false);
   }

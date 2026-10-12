@@ -4,9 +4,9 @@ import QtQuick.Controls.Basic
 ApplicationWindow {
     id: window
     width: 950
-    height: 775
+    height: 900
     minimumWidth: 640
-    minimumHeight: 640
+    minimumHeight: 800
     visible: true
     title: qsTr("Raspberrypi LED")
 
@@ -206,77 +206,111 @@ ApplicationWindow {
         }
     }
 
-    // Bottom: Helsinki forecast for the coming week.
+    // Bottom: forecast for the coming week (Helsinki on top, Brussels below).
     Column {
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.margins: 12
-        spacing: 4
+        spacing: 10
 
-        Text {
+        Column {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Helsinki — next 7 days"
-            font.pixelSize: 16
-            color: "red"
-            bottomPadding: 5
+            spacing: 4
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Helsinki — next 7 days"
+                font.pixelSize: 16
+                color: "red"
+                bottomPadding: 5
+            }
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 6
+
+                Repeater {
+                    model: weatherModel
+                    delegate: weatherCard
+                }
+            }
         }
 
-        Row {
+        Column {
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 6
+            spacing: 4
 
-            Repeater {
-                model: weatherModel
-                delegate: Rectangle {
-                    width: 82
-                    height: 104
-                    radius: 6
-                    color: "#f2f3f5"
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Brussels — next 7 days"
+                font.pixelSize: 16
+                color: "red"
+                bottomPadding: 5
+            }
 
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 3
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: model.day
-                            font.pixelSize: 11
-                            font.bold: true
-                            color: "#333333"
-                        }
-                        Image {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            source: model.iconSource
-                            width: 26
-                            height: 26
-                            fillMode: Image.PreserveAspectFit
-                        }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: model.cond
-                            font.pixelSize: 10
-                            color: "#666666"
-                        }
-                        Row {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: 7
-                            Text {
-                                text: model.hi + "°"
-                                font.pixelSize: 12
-                                color: "#c0392b"
-                            }
-                            Text {
-                                text: model.lo + "°"
-                                font.pixelSize: 12
-                                color: "#2980b9"
-                            }
-                        }
-                    }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 6
+
+                Repeater {
+                    model: brusselsModel
+                    delegate: weatherCard
                 }
             }
         }
     }
 
     ListModel { id: weatherModel }
+    ListModel { id: brusselsModel }
+
+    Component {
+        id: weatherCard
+        Rectangle {
+            width: 82
+            height: 104
+            radius: 6
+            color: "#f2f3f5"
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 3
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: model.day
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: "#333333"
+                }
+                Image {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    source: model.iconSource
+                    width: 26
+                    height: 26
+                    fillMode: Image.PreserveAspectFit
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: model.cond
+                    font.pixelSize: 10
+                    color: "#666666"
+                }
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 7
+                    Text {
+                        text: model.hi + "°"
+                        font.pixelSize: 12
+                        color: "#c0392b"
+                    }
+                    Text {
+                        text: model.lo + "°"
+                        font.pixelSize: 12
+                        color: "#2980b9"
+                    }
+                }
+            }
+        }
+    }
 
     function weatherIconSource(code) {
         if (code === 0) return "qrc:/weather/sun.svg";
@@ -304,18 +338,18 @@ ApplicationWindow {
         return "—";
     }
 
-    function loadWeather() {
+    function loadWeatherFor(model, lat, lon, tz) {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
                 try {
                     var data = JSON.parse(xhr.responseText);
-                    weatherModel.clear();
+                    model.clear();
                     for (var i = 0; i < data.daily.time.length; i++) {
                         var p = data.daily.time[i].split("-");
                         var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
                         var code = data.daily.weather_code[i];
-                        weatherModel.append({
+                        model.append({
                             day: d.toLocaleDateString(Qt.locale("en_US"), "MMM. d"),
                             iconSource: weatherIconSource(code),
                             cond: weatherLabel(code),
@@ -328,13 +362,24 @@ ApplicationWindow {
                 }
             }
         };
-        xhr.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=60.1699&longitude=24.9384&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Europe/Helsinki&forecast_days=7");
+        var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+                  "&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=" + tz + "&forecast_days=7";
+        xhr.open("GET", url);
         xhr.send();
+    }
+
+    function loadWeather() {
+        loadWeatherFor(weatherModel, 60.1699, 24.9384, "Europe/Helsinki");
+    }
+
+    function loadBrusselsWeather() {
+        loadWeatherFor(brusselsModel, 50.8503, 4.3517, "Europe/Brussels");
     }
 
     Component.onCompleted: {
         localClock.text = ledController.localTime()
         helsinkiClock.text = ledController.helsinkiTime()
         loadWeather()
+        loadBrusselsWeather()
     }
 }
