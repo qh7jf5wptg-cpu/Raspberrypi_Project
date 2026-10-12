@@ -4,9 +4,9 @@ import QtQuick.Controls.Basic
 ApplicationWindow {
     id: window
     width: 950
-    height: 900
+    height: 1040
     minimumWidth: 640
-    minimumHeight: 800
+    minimumHeight: 940
     visible: true
     title: qsTr("Raspberrypi LED")
 
@@ -258,10 +258,34 @@ ApplicationWindow {
                 }
             }
         }
+
+        Column {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 4
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Berlin — next 7 days"
+                font.pixelSize: 16
+                color: "red"
+                bottomPadding: 5
+            }
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 6
+
+                Repeater {
+                    model: berlinModel
+                    delegate: weatherCard
+                }
+            }
+        }
     }
 
     ListModel { id: weatherModel }
     ListModel { id: brusselsModel }
+    ListModel { id: berlinModel }
 
     Component {
         id: weatherCard
@@ -376,10 +400,15 @@ ApplicationWindow {
         loadWeatherFor(brusselsModel, 50.8503, 4.3517, "Europe/Brussels");
     }
 
+    function loadBerlinWeather() {
+        loadWeatherFor(berlinModel, 52.5200, 13.4050, "Europe/Berlin");
+    }
+
     Component.onCompleted: {
         localClock.text = ledController.localTime()
         helsinkiClock.text = ledController.helsinkiTime()
         loadWeather()
         loadBrusselsWeather()
+        loadBerlinWeather()
     }
 }

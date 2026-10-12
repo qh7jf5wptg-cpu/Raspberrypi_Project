@@ -4,7 +4,7 @@
 Serves a small web page on http://localhost:8000 showing the live CPU
 temperature, LED state, mode and alarm threshold -- with a rolling chart, a
 	control panel, and the current time and 7-day weather forecast for Helsinki
-	and Brussels.
+	Helsinki, Brussels, and Berlin.
 It talks to the same MQTT broker as the Qt app and the Blender twin, so all
 three stay in sync.
 
@@ -40,6 +40,8 @@ HELSINKI_LAT = 60.1699
 HELSINKI_LON = 24.9384
 BRUSSELS_LAT = 50.8503
 BRUSSELS_LON = 4.3517
+BERLIN_LAT = 52.5200
+BERLIN_LON = 13.4050
 MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.",
           "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."]
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -207,9 +209,10 @@ def forecast_loop():
     while True:
         helsinki = fetch_forecast(HELSINKI_LAT, HELSINKI_LON, "Europe/Helsinki")
         brussels = fetch_forecast(BRUSSELS_LAT, BRUSSELS_LON, "Europe/Brussels")
+        berlin = fetch_forecast(BERLIN_LAT, BERLIN_LON, "Europe/Berlin")
         if helsinki or brussels:
             with _lock:
-                _forecast = {"helsinki": helsinki, "brussels": brussels}
+                _forecast = {"helsinki": helsinki, "brussels": brussels, "berlin": berlin}
             time.sleep(FORECAST_REFRESH)
         else:
             # Keep whatever we already have, and try again soon.
@@ -365,6 +368,14 @@ PAGE = """<!doctype html>
       <div class="muted" id="nowline-brussels">loading...</div>
     </div>
     <div class="days" id="days-brussels"></div>
+  </section>
+
+  <section class="weather">
+    <div class="weather-head">
+      <h2>Berlin &mdash; 7 day forecast</h2>
+      <div class="muted" id="nowline-berlin">loading...</div>
+    </div>
+    <div class="days" id="days-berlin"></div>
   </section>
 </div>
 
@@ -620,6 +631,7 @@ async function tick() {
 
     renderForecast(data.forecast ? data.forecast.helsinki : null, 'days-helsinki', 'nowline-helsinki');
     renderForecast(data.forecast ? data.forecast.brussels : null, 'days-brussels', 'nowline-brussels');
+    renderForecast(data.forecast ? data.forecast.berlin : null, 'days-berlin', 'nowline-berlin');
   } catch (e) {
     setConn(false);
   }
