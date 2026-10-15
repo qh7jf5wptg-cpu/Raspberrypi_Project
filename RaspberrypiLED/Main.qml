@@ -97,27 +97,28 @@ ApplicationWindow {
                 var bottom = height - 18
                 var plotTop = 18
                 var plotH = bottom - plotTop
-                var stepX = (right - left) / (h.length - 1)
 
-                // Waveform fill under the curve.
-                ctx.beginPath()
-                ctx.moveTo(left, bottom - 2)
-                for (var j = 0; j < h.length; j++)
-                    ctx.lineTo(left + j * stepX, bottom - 2 - (h[j] - min) / range * (plotH - 4))
-                ctx.lineTo(right, bottom - 2)
-                ctx.closePath()
-                ctx.fillStyle = "rgba(44, 62, 80, 0.12)"
-                ctx.fill()
+                // Fixed 60 slots so the x-axis always spans the last 60 seconds.
+                var step = (right - left) / 60
+                var barW = Math.max(1, step - 1.2)
 
-                // Waveform line.
+                // Chart: one bar per sample, red when above the threshold.
+                for (var j = 0; j < h.length; j++) {
+                    var bx = left + j * step
+                    var by = bottom - 2 - (h[j] - min) / range * (plotH - 4)
+                    ctx.fillStyle = h[j] > ledController.threshold ? "#e74c3c" : "#2c3e50"
+                    ctx.fillRect(bx, by, barW, bottom - 2 - by)
+                }
+
+                // Waveform: the trend line across the samples.
                 ctx.beginPath()
                 for (var k = 0; k < h.length; k++) {
-                    var cx = left + k * stepX
+                    var cx = left + k * step + barW / 2
                     var cy = bottom - 2 - (h[k] - min) / range * (plotH - 4)
                     if (k === 0) ctx.moveTo(cx, cy)
                     else ctx.lineTo(cx, cy)
                 }
-                ctx.strokeStyle = h[h.length - 1] > ledController.threshold ? "#e74c3c" : "#2c3e50"
+                ctx.strokeStyle = "#e74c3c"
                 ctx.lineWidth = 2
                 ctx.lineJoin = "round"
                 ctx.lineCap = "round"
