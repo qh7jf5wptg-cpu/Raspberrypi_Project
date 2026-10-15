@@ -93,28 +93,34 @@ ApplicationWindow {
                 if (range < 1) range = 1
 
                 var left = 40
+                var right = width - 6
                 var bottom = height - 18
                 var plotTop = 18
                 var plotH = bottom - plotTop
-                var barW = 4
-                var step = barW + 1
+                var stepX = (right - left) / (h.length - 1)
 
-                for (var j = 0; j < h.length; j++) {
-                    var y = bottom - 2 - (h[j] - min) / range * (plotH - 4)
-                    var bh = bottom - y
-                    ctx.fillStyle = h[j] > ledController.threshold ? "#e74c3c" : "#2c3e50"
-                    ctx.fillRect(left + j * step, y, barW, bh)
-                }
+                // Waveform fill under the curve.
+                ctx.beginPath()
+                ctx.moveTo(left, bottom - 2)
+                for (var j = 0; j < h.length; j++)
+                    ctx.lineTo(left + j * stepX, bottom - 2 - (h[j] - min) / range * (plotH - 4))
+                ctx.lineTo(right, bottom - 2)
+                ctx.closePath()
+                ctx.fillStyle = "rgba(44, 62, 80, 0.12)"
+                ctx.fill()
 
-                ctx.strokeStyle = "#e74c3c"
-                ctx.lineWidth = 1.5
+                // Waveform line.
                 ctx.beginPath()
                 for (var k = 0; k < h.length; k++) {
-                    var cx = left + k * step + barW / 2
+                    var cx = left + k * stepX
                     var cy = bottom - 2 - (h[k] - min) / range * (plotH - 4)
                     if (k === 0) ctx.moveTo(cx, cy)
                     else ctx.lineTo(cx, cy)
                 }
+                ctx.strokeStyle = h[h.length - 1] > ledController.threshold ? "#e74c3c" : "#2c3e50"
+                ctx.lineWidth = 2
+                ctx.lineJoin = "round"
+                ctx.lineCap = "round"
                 ctx.stroke()
 
                 ctx.fillStyle = "#555555"
@@ -124,11 +130,10 @@ ApplicationWindow {
                 ctx.fillText(((min + max) / 2).toFixed(1) + "\u00b0C", left - 4, plotTop + plotH / 2 + 3)
                 ctx.fillText(min.toFixed(1) + "\u00b0C", left - 4, bottom - 1)
 
-                var endX = left + (h.length - 1) * step + barW
                 ctx.textAlign = "left"
                 ctx.fillText("60s ago", left, height - 5)
                 ctx.textAlign = "right"
-                ctx.fillText("now", endX, height - 5)
+                ctx.fillText("now", right, height - 5)
             }
 
             Connections {
