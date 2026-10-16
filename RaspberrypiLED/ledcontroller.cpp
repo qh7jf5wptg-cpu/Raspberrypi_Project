@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
+#include <QUrl>
 #include <QVariantMap>
 #include <cmath>
 #include <QDateTime>
@@ -80,9 +81,17 @@ void LedController::appendLogEntry()
     emit logChanged();
 }
 
-QString LedController::exportLogCsv()
+QString LedController::exportLogCsv(const QString &target)
 {
-    const QString path = QDir::homePath() + "/led_log_"
+    // Accepts either a plain folder path or a file:// URL from the dialog.
+    QString dir = target;
+    const QUrl url(target);
+    if (url.isLocalFile())
+        dir = url.toLocalFile();
+    if (dir.isEmpty() || !QDir(dir).exists())
+        dir = QDir::homePath();
+
+    const QString path = dir + "/led_log_"
         + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".csv";
 
     QFile f(path);

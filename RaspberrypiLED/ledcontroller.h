@@ -33,9 +33,10 @@ public:
     QVariantList history() const;
     QVariantList log() const;
 
-    // Write the last 60 s of the log to a CSV file in the home folder.
-    // Returns the path written, or an empty string on failure.
-    Q_INVOKABLE QString exportLogCsv();
+    // Write the last 60 s of the log to a CSV file in the given folder
+    // (accepts a local path or a file:// URL). Returns the path written,
+    // or an empty string on failure.
+    Q_INVOKABLE QString exportLogCsv(const QString &target);
 
 public slots:
     void setThreshold(double threshold);

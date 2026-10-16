@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Dialogs
 
 ApplicationWindow {
     id: window
@@ -299,10 +300,7 @@ ApplicationWindow {
             }
             Button {
                 text: "Export CSV"
-                onClicked: {
-                    var path = ledController.exportLogCsv()
-                    exportStatus.text = path === "" ? "Export failed" : "Saved: " + path
-                }
+                onClicked: exportDialog.open()
             }
         }
 
@@ -423,6 +421,16 @@ ApplicationWindow {
         function onLogChanged() {
             if (!paused)
                 refreshLog()
+        }
+    }
+
+    // Pick the destination folder; the file name itself stays fixed.
+    FolderDialog {
+        id: exportDialog
+        title: "Choose a folder for the CSV export"
+        onAccepted: {
+            var path = ledController.exportLogCsv(selectedFolder.toString())
+            exportStatus.text = path === "" ? "Export failed" : "Saved: " + path
         }
     }
 
