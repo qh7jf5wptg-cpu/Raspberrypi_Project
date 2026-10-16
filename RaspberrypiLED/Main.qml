@@ -3,10 +3,10 @@ import QtQuick.Controls.Basic
 
 ApplicationWindow {
     id: window
-    width: 950
-    height: 860
-    minimumWidth: 640
-    minimumHeight: 820
+    width: 1100
+    height: 880
+    minimumWidth: 1000
+    minimumHeight: 840
     visible: true
     title: qsTr("Raspberrypi LED")
 
@@ -62,7 +62,8 @@ ApplicationWindow {
     Column {
         anchors.top: parent.top
         anchors.topMargin: 60
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
+        anchors.leftMargin: 40
         spacing: 18
 
         Canvas {
@@ -214,6 +215,115 @@ ApplicationWindow {
         }
     }
 
+    // Right: rolling 60-second log with pause and CSV export.
+    Column {
+        anchors.top: parent.top
+        anchors.topMargin: 60
+        anchors.right: parent.right
+        anchors.rightMargin: 40
+        spacing: 8
+
+        Text {
+            text: "Log — last 60 s"
+            font.pixelSize: 16
+            color: "red"
+        }
+
+        Row {
+            spacing: 0
+            Text { text: "Time";    width: 80; font.pixelSize: 11; font.bold: true; color: "#333333" }
+            Text { text: "Temp °C"; width: 84; font.pixelSize: 11; font.bold: true; color: "#333333" }
+            Text { text: "Mode";    width: 76; font.pixelSize: 11; font.bold: true; color: "#333333" }
+            Text { text: "LED";     width: 56; font.pixelSize: 11; font.bold: true; color: "#333333" }
+            Text { text: "Thr. °C"; width: 70; font.pixelSize: 11; font.bold: true; color: "#333333" }
+        }
+
+        Rectangle {
+            width: 366
+            height: 1
+            color: "#dddddd"
+        }
+
+        ListView {
+            id: logView
+            width: 366
+            height: 220
+            clip: true
+            model: logModel
+            delegate: Row {
+                spacing: 0
+                Text {
+                    width: 80
+                    text: model.time
+                    font.pixelSize: 12
+                    color: "#333333"
+                }
+                Text {
+                    width: 84
+                    text: model.temperature.toFixed(1)
+                    font.pixelSize: 12
+                    font.bold: model.temperature > ledController.threshold
+                    color: model.temperature > ledController.threshold ? "#c0392b" : "#333333"
+                }
+                Text {
+                    width: 76
+                    text: model.mode
+                    font.pixelSize: 12
+                    color: model.mode === "Manual" ? "#b9770e" : "#333333"
+                }
+                Text {
+                    width: 56
+                    text: model.led
+                    font.pixelSize: 12
+                    font.bold: model.led === "ON"
+                    color: model.led === "ON" ? "#c0392b" : "#333333"
+                }
+                Text {
+                    width: 70
+                    text: model.threshold.toFixed(1)
+                    font.pixelSize: 12
+                    color: "#333333"
+                }
+            }
+        }
+
+        Row {
+            spacing: 10
+            Button {
+                text: paused ? "Resume" : "Pause"
+                onClicked: {
+                    paused = !paused
+                    if (!paused)
+                        refreshLog()
+                }
+            }
+            Button {
+                text: "Export CSV"
+                onClicked: {
+                    var path = ledController.exportLogCsv()
+                    exportStatus.text = path === "" ? "Export failed" : "Saved: " + path
+                }
+            }
+        }
+
+        Text {
+            width: 366
+            text: paused ? "Paused — logging continues in the background" : " "
+            font.pixelSize: 11
+            color: "#b9770e"
+            wrapMode: Text.Wrap
+        }
+
+        Text {
+            id: exportStatus
+            width: 366
+            text: " "
+            font.pixelSize: 11
+            color: "#666666"
+            wrapMode: Text.Wrap
+        }
+    }
+
     // Bottom: forecast for the coming week (Helsinki on top, Brussels below).
     Column {
         anchors.bottom: parent.bottom
@@ -294,6 +404,27 @@ ApplicationWindow {
     ListModel { id: weatherModel }
     ListModel { id: brusselsModel }
     ListModel { id: berlinModel }
+    ListModel { id: logModel }
+
+    property bool paused: false
+
+    // Rebuild the table from the backend's rolling 60-second log.
+    function refreshLog() {
+        logModel.clear()
+        var entries = ledController.log
+        for (var i = 0; i < entries.length; i++)
+            logModel.append(entries[i])
+        logView.positionViewAtEnd()
+    }
+
+    // While paused the table is frozen, but the backend keeps recording.
+    Connections {
+        target: ledController
+        function onLogChanged() {
+            if (!paused)
+                refreshLog()
+        }
+    }
 
     Component {
         id: weatherCard
@@ -418,5 +549,6 @@ ApplicationWindow {
         loadWeather()
         loadBrusselsWeather()
         loadBerlinWeather()
+        refreshLog()
     }
 }

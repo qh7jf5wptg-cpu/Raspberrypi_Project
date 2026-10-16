@@ -19,6 +19,7 @@ class LedController : public QObject
     Q_PROPERTY(bool manualLedOn READ manualLedOn WRITE setManualLedOn NOTIFY manualLedOnChanged)
     Q_PROPERTY(bool ledOn READ ledOn NOTIFY ledOnChanged)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
+    Q_PROPERTY(QVariantList log READ log NOTIFY logChanged)
 
 public:
     explicit LedController(QObject *parent = nullptr);
@@ -30,6 +31,11 @@ public:
     bool manualLedOn() const { return m_manualLedOn; }
     bool ledOn() const { return m_ledOn; }
     QVariantList history() const;
+    QVariantList log() const;
+
+    // Write the last 60 s of the log to a CSV file in the home folder.
+    // Returns the path written, or an empty string on failure.
+    Q_INVOKABLE QString exportLogCsv();
 
 public slots:
     void setThreshold(double threshold);
@@ -46,12 +52,14 @@ signals:
     void manualLedOnChanged();
     void ledOnChanged();
     void historyChanged();
+    void logChanged();
 
 private:
     double readCpuTempC();
     void writeLed(bool on);
     void updateLed();
     void publishState();
+    void appendLogEntry();
     static void onMessage(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg);
     void handleMessage(const struct mosquitto_message *msg);
 
@@ -63,6 +71,7 @@ private:
     bool m_ledOn = false;
     int m_tick = 0;
     QList<double> m_history;
+    QVariantList m_log;
     struct mosquitto *m_mosq = nullptr;
 };
 

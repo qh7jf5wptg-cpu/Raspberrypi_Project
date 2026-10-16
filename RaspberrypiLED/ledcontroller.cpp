@@ -1,6 +1,9 @@
 #include "ledcontroller.h"
 
 #include <QFile>
+#include <QDir>
+#include <QTextStream>
+#include <QVariantMap>
 #include <cmath>
 #include <QDateTime>
 #include <QTimeZone>
@@ -56,6 +59,51 @@ QVariantList LedController::history() const
     return list;
 }
 
+QVariantList LedController::log() const
+{
+    return m_log;
+}
+
+void LedController::appendLogEntry()
+{
+    QVariantMap entry;
+    entry["time"] = QDateTime::currentDateTime().toString("HH:mm:ss");
+    entry["temperature"] = m_temperature;
+    entry["mode"] = m_autoMode ? QStringLiteral("Auto") : QStringLiteral("Manual");
+    entry["led"] = m_ledOn ? QStringLiteral("ON") : QStringLiteral("OFF");
+    entry["threshold"] = m_threshold;
+
+    m_log.append(entry);
+    while (m_log.size() > 60)
+        m_log.removeFirst();
+
+    emit logChanged();
+}
+
+QString LedController::exportLogCsv()
+{
+    const QString path = QDir::homePath() + "/led_log_"
+        + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".csv";
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
+        return QString();
+
+    QTextStream out(&f);
+    out << "time,temperature_c,mode,led,threshold_c\n";
+    for (const QVariant &v : m_log) {
+        const QVariantMap e = v.toMap();
+        out << e.value("time").toString() << ','
+            << QString::number(e.value("temperature").toDouble(), 'f', 1) << ','
+            << e.value("mode").toString() << ','
+            << e.value("led").toString() << ','
+            << QString::number(e.value("threshold").toDouble(), 'f', 1) << '\n';
+    }
+    out.flush();
+    f.close();
+    return path;
+}
+
 void LedController::refresh()
 {
     const double t = readCpuTempC();
@@ -71,6 +119,7 @@ void LedController::refresh()
     }
     updateLed();
     publishState();
+    appendLogEntry();
 }
 
 void LedController::setThreshold(double threshold)
