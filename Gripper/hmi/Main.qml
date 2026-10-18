@@ -56,8 +56,10 @@ ApplicationWindow {
 
             // Top view of the work envelope.
             Rectangle {
+                id: canvasPanel
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth: 200
                 radius: 14
                 color: "#ffffff"
                 border.color: "#dfe5ef"
@@ -123,7 +125,10 @@ ApplicationWindow {
             }
 
             ColumnLayout {
+                id: rightPanel
                 Layout.preferredWidth: 330
+                Layout.minimumWidth: 330
+                Layout.maximumWidth: 330
                 Layout.fillHeight: true
                 spacing: 10
 
@@ -312,4 +317,5 @@ ApplicationWindow {
             }
         }
     }
+
 }
