@@ -20,6 +20,14 @@ ApplicationWindow {
         return isNaN(value) ? fallback : value
     }
 
+    function gripState() { return num("grip", 1) > 0.5 ? "OPEN" : "CLOSED" }
+    function holdingState() { return num("holding", 0) > 0 ? "HOLDING PART" : "EMPTY" }
+    function beltState() {
+        if (num("holding", 0) > 0) return "waiting (part held)"
+        if (num("part_x", -1) < 0) return "empty"
+        return num("part_y", 0) > 100 ? "part diverting" : "part on belt"
+    }
+
     property real plantSeen: 0
     property real plcSeen: 0
     property bool plantOnline: false
@@ -173,18 +181,35 @@ ApplicationWindow {
                         ctx.fillStyle = num("sensor_divert", 0) > 0 ? "#2ecc71" : "#b6c0ce"
                         sensor(gateX, Y(210), "DIV")
 
-                        // Part: follows the tool while held, rides otherwise.
+                        // Part: follows the tool while held, rides the line otherwise.
                         var holding = num("holding", 0) > 0
+                        var partOnLine = !holding && num("part_x", -1) >= 0
                         var ppx = holding ? num("x", 0) : num("part_x", -1)
                         var ppy = holding ? num("y", 0) : num("part_y", -1)
-                        if (ppx >= 0 && ppy >= 0) {
-                            ctx.fillStyle = "#e0a800"
+                        if (holding || partOnLine) {
+                            var partCx = X(ppx)
+                            var partCy = Y(ppy)
+                            var partR = holding ? 7 * s : 6 * s
+                            ctx.fillStyle = holding ? "#f39c12" : "#e0a800"
                             ctx.beginPath()
-                            ctx.arc(X(ppx), Y(ppy), 5 * s, 0, Math.PI * 2)
+                            ctx.arc(partCx, partCy, partR, 0, Math.PI * 2)
                             ctx.fill()
+                            ctx.strokeStyle = holding ? "#27ae60" : "#8a6d00"
+                            ctx.lineWidth = 2
+                            ctx.stroke()
+
+                            ctx.fillStyle = "#172033"
+                            ctx.font = "bold 11px sans-serif"
+                            ctx.textAlign = "center"
+                            if (holding)
+                                ctx.fillText("HOLDING", partCx, partCy - 12 * s)
+                            else if (num("part_y", 0) > 100)
+                                ctx.fillText("DIVERT", partCx, partCy - 12 * s)
+                            else
+                                ctx.fillText("PART", partCx, partCy - 12 * s)
                         }
 
-                        // Gantry tool crosshair.
+                        // Gantry tool crosshair (green while holding, orange when empty).
                         var tx = X(num("x", 0))
                         var ty = Y(num("y", 0))
                         ctx.fillStyle = holding ? "#27ae60" : "#e67e22"
@@ -253,6 +278,21 @@ ApplicationWindow {
                                   + "   ·   diverted " + tag("diverted", "0")
                             font.pixelSize: 11
                             color: "#637083"
+                        }
+                        Text {
+                            text: "GRIPPER: " + holdingState() + "   ·   jaws " + gripState()
+                            font.pixelSize: 12
+                            font.bold: true
+                            color: num("holding", 0) > 0 ? "#27ae60" : "#637083"
+                        }
+                        Text {
+                            text: "BELT: " + beltState()
+                            font.pixelSize: 12
+                            font.bold: true
+                            color: num("holding", 0) > 0 ? "#637083"
+                                   : num("part_x", -1) < 0 ? "#637083"
+                                   : num("part_y", 0) > 100 ? "#e74c3c"
+                                   : "#e67e22"
                         }
                         Text {
                             text: (plantOnline ? "plant online" : "plant OFFLINE")
