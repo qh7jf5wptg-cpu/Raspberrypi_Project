@@ -5,7 +5,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     width: 1100
-    height: 700
+    height: 900
     visible: true
     title: qsTr("PickLine — Gripper + Conveyor HMI")
     color: "#eef2f8"
