@@ -32,6 +32,14 @@ ApplicationWindow {
                          + Math.pow(num("y", 0) - binY, 2)) <= 8
                && num("z", 0) <= 5
     }
+    function binProximity(binY) {
+        var dx = num("x", 0) - 260
+        var dy = num("y", 0) - binY
+        var dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist <= 8 && num("z", 0) <= 5) return "ready"
+        if (dist <= 30) return "near"
+        return "far"
+    }
     function pickHint() {
         if (num("holding", 0) > 0) return "HOLDING PART"
         if (num("z", 0) > 5) return "lower Z to grab"
@@ -171,18 +179,40 @@ ApplicationWindow {
                         ctx.fillRect(X(0) - 8, Y(100) - 12 * s, 16, 24 * s)
                         ctx.fillText("DROP", X(0), Y(100) - 18 * s)
 
-                        // Two bins; the one in range glows green when ready to grab.
+                        // Two bins; they turn yellow as you approach and green when ready.
                         function drawBin(binY, label) {
-                            var ready = atBin(binY)
-                            ctx.fillStyle = "rgba(224,168,0,0.18)"
-                            ctx.fillRect(X(260) - 11, Y(binY) - 11, 22, 22)
-                            if (ready) {
-                                ctx.strokeStyle = "#27ae60"
+                            var st = binProximity(binY)
+                            var bx = X(260) - 12
+                            var by = Y(binY) - 12
+                            var bs = 24
+                            if (st === "ready") {
+                                ctx.fillStyle = "#2ecc71"
+                                ctx.strokeStyle = "#1e8449"
                                 ctx.lineWidth = 3
-                                ctx.strokeRect(X(260) - 11, Y(binY) - 11, 22, 22)
+                            } else if (st === "near") {
+                                ctx.fillStyle = "#f1c40f"
+                                ctx.strokeStyle = "#b7950b"
+                                ctx.lineWidth = 2
+                            } else {
+                                ctx.fillStyle = "rgba(224,168,0,0.18)"
+                                ctx.strokeStyle = "#d8b35a"
+                                ctx.lineWidth = 1
                             }
-                            ctx.fillStyle = ready ? "#27ae60" : "#b58a00"
-                            ctx.fillText(label, X(260), Y(binY) - 16)
+                            ctx.fillRect(bx, by, bs, bs)
+                            ctx.strokeRect(bx, by, bs, bs)
+
+                            // Part waiting in this bin (always available to grab).
+                            ctx.fillStyle = st === "ready" ? "#ffffff" : "#7a4a00"
+                            ctx.beginPath()
+                            ctx.arc(X(260), Y(binY), 5, 0, Math.PI * 2)
+                            ctx.fill()
+
+                            ctx.fillStyle = st === "ready" ? "#ffffff"
+                                            : st === "near" ? "#6e5400"
+                                            : "#b58a00"
+                            ctx.font = "bold 11px sans-serif"
+                            ctx.fillText(st === "ready" ? label + " ✓" : label,
+                                         X(260), Y(binY) - 18)
                         }
                         drawBin(20, "BIN DOWN")
                         drawBin(190, "BIN UP")
@@ -240,6 +270,15 @@ ApplicationWindow {
                         ctx.lineWidth = 1.5
                         ctx.beginPath(); ctx.moveTo(tx - 12 * s, ty); ctx.lineTo(tx + 12 * s, ty); ctx.stroke()
                         ctx.beginPath(); ctx.moveTo(tx, ty - 12 * s); ctx.lineTo(tx, ty + 12 * s); ctx.stroke()
+
+                        // Green ring around the tool when it is in grab position.
+                        if (!holding && (atBin(20) || atBin(190))) {
+                            ctx.strokeStyle = "#1e8449"
+                            ctx.lineWidth = 3
+                            ctx.beginPath()
+                            ctx.arc(tx, ty, 13 * s, 0, Math.PI * 2)
+                            ctx.stroke()
+                        }
                     }
                 }
             }
