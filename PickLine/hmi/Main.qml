@@ -27,6 +27,18 @@ ApplicationWindow {
         if (num("part_x", -1) < 0) return "empty"
         return num("part_y", 0) > 100 ? "part diverting" : "part on belt"
     }
+    function atBin(binY) {
+        return Math.sqrt(Math.pow(num("x", 0) - 260, 2)
+                         + Math.pow(num("y", 0) - binY, 2)) <= 8
+               && num("z", 0) <= 5
+    }
+    function pickHint() {
+        if (num("holding", 0) > 0) return "HOLDING PART"
+        if (num("z", 0) > 5) return "lower Z to grab"
+        if (atBin(20)) return "at DOWN bin — close jaws"
+        if (atBin(190)) return "at UP bin — close jaws"
+        return "move to a bin (260, 20 or 190)"
+    }
 
     property real plantSeen: 0
     property real plcSeen: 0
@@ -159,13 +171,21 @@ ApplicationWindow {
                         ctx.fillRect(X(0) - 8, Y(100) - 12 * s, 16, 24 * s)
                         ctx.fillText("DROP", X(0), Y(100) - 18 * s)
 
-                        // Two bins.
-                        ctx.fillStyle = "rgba(224,168,0,0.18)"
-                        ctx.fillRect(X(260) - 11, Y(20) - 11, 22, 22)
-                        ctx.fillRect(X(260) - 11, Y(190) - 11, 22, 22)
-                        ctx.fillStyle = "#b58a00"
-                        ctx.fillText("BIN DOWN", X(260), Y(20) - 16)
-                        ctx.fillText("BIN UP", X(260), Y(190) - 16)
+                        // Two bins; the one in range glows green when ready to grab.
+                        function drawBin(binY, label) {
+                            var ready = atBin(binY)
+                            ctx.fillStyle = "rgba(224,168,0,0.18)"
+                            ctx.fillRect(X(260) - 11, Y(binY) - 11, 22, 22)
+                            if (ready) {
+                                ctx.strokeStyle = "#27ae60"
+                                ctx.lineWidth = 3
+                                ctx.strokeRect(X(260) - 11, Y(binY) - 11, 22, 22)
+                            }
+                            ctx.fillStyle = ready ? "#27ae60" : "#b58a00"
+                            ctx.fillText(label, X(260), Y(binY) - 16)
+                        }
+                        drawBin(20, "BIN DOWN")
+                        drawBin(190, "BIN UP")
 
                         // Sensors.
                         function sensor(cx, cy, label) {
@@ -284,6 +304,14 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             color: num("holding", 0) > 0 ? "#27ae60" : "#637083"
+                        }
+                        Text {
+                            text: "PICK: " + pickHint()
+                            font.pixelSize: 12
+                            font.bold: true
+                            color: num("holding", 0) > 0 ? "#27ae60"
+                                   : (atBin(20) || atBin(190)) ? "#27ae60"
+                                   : "#e67e22"
                         }
                         Text {
                             text: "BELT: " + beltState()
