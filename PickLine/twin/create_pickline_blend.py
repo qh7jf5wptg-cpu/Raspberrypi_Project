@@ -78,6 +78,10 @@ box("FramePostB", (3.0, 0.9, 0.5), (0.05, 0.05, 0.5), frame_mat)
 box("BinDown", (2.6, 0.2, 0.10), (0.16, 0.16, 0.10), bin_mat)
 box("BinUp", (2.6, 1.9, 0.10), (0.16, 0.16, 0.10), bin_mat)
 
+# Parts waiting in the bins (always visible; the live "Part" is the one in flight).
+box("PartDown", (2.6, 0.2, 0.18), (0.05, 0.05, 0.05), part_mat)
+box("PartUp", (2.6, 1.9, 0.18), (0.05, 0.05, 0.05), part_mat)
+
 # Gantry tool head and jaws.
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(0.0, 0.0, 0.6))
 tool = bpy.context.object
