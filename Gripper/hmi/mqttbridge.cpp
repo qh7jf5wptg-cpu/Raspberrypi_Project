@@ -87,7 +87,8 @@ void MqttBridge::onMessage(struct mosquitto *, void *obj,
         return;
 
     const QString topic = QString::fromUtf8(msg->topic);
-    const QString key = topic.section(QLatin1Char('/'), 1);
+    const QString key = topic.startsWith(QLatin1String("gripper/"))
+        ? topic.mid(8) : topic;
     const QString payload = QString::fromUtf8(
         static_cast<const char *>(msg->payload), msg->payloadlen);
 

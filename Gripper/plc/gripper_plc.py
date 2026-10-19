@@ -196,9 +196,13 @@ def main():
     publish_status()
 
     period = 1.0 / LOOP_HZ
+    last_alive = 0.0
     while True:
         tick(time.monotonic())
         publish_status()
+        if time.monotonic() - last_alive >= 1.0:
+            client.publish("gripper/plc/alive", "%.0f" % time.time(), retain=True)
+            last_alive = time.monotonic()
         time.sleep(period)
 
 

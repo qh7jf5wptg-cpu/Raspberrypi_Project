@@ -153,12 +153,16 @@ def main():
 
     period = 1.0 / LOOP_HZ
     last = time.monotonic()
+    last_alive = 0.0
     while True:
         now = time.monotonic()
         dt = min(now - last, 0.2)
         last = now
         step(dt)
         publish(client, snapshot())
+        if now - last_alive >= 1.0:
+            client.publish("gripper/plant/alive", "%.0f" % time.time(), retain=True)
+            last_alive = now
         time.sleep(max(0.0, period - (time.monotonic() - now)))
 
 

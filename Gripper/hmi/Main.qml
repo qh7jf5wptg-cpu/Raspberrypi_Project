@@ -20,6 +20,32 @@ ApplicationWindow {
         return isNaN(value) ? fallback : value
     }
 
+    // Liveness: the plant and PLC each publish a heartbeat once a second.
+    property real plantSeen: 0
+    property real plcSeen: 0
+    property bool plantOnline: false
+    property bool plcOnline: false
+
+    Connections {
+        target: bridge
+        function onTagsChanged() {
+            var now = Date.now()
+            if (bridge.tags["plant/alive"] !== undefined) plantSeen = now
+            if (bridge.tags["plc/alive"] !== undefined) plcSeen = now
+        }
+    }
+
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            var now = Date.now()
+            plantOnline = (now - plantSeen) < 3500
+            plcOnline = (now - plcSeen) < 3500
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
@@ -153,15 +179,21 @@ ApplicationWindow {
                             color: "#7f8c9b"
                         }
                         Text {
-                            text: tag("state", "IDLE")
+                            text: plcOnline ? tag("state", "IDLE") : "PLC OFFLINE"
                             font.pixelSize: 26
                             font.bold: true
-                            color: tag("state", "") === "FAULT" ? "#c0392b" : "#172033"
+                            color: (!plcOnline || tag("state", "") === "FAULT") ? "#c0392b" : "#172033"
                         }
                         Text {
                             text: "mode " + tag("mode", "auto") + "   ·   placed " + tag("count", "0")
                             font.pixelSize: 12
                             color: "#637083"
+                        }
+                        Text {
+                            text: (plantOnline ? "plant online" : "plant OFFLINE")
+                                  + "   ·   " + (plcOnline ? "PLC online" : "PLC OFFLINE")
+                            font.pixelSize: 11
+                            color: (plantOnline && plcOnline) ? "#2e7d32" : "#c0392b"
                         }
                         Text {
                             visible: tag("alarm", "").length > 0
