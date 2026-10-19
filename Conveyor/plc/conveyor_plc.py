@@ -74,7 +74,7 @@ def decide_next():
 
 
 def on_message(_cli, _userdata, msg):
-    global sensor1, state, mode, started, decision, alternate_flag, alarm
+    global sensor1, sensor1_prev, state, mode, started, decision, alternate_flag, alarm
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         if msg.topic == "conveyor/sensor1":
@@ -87,6 +87,7 @@ def on_message(_cli, _userdata, msg):
             state = "RUNNING"
             alarm = ""
             alternate_flag = False
+            sensor1_prev = 0
             apply_decision(False)
             client.publish("conveyor/target/belt", "1", retain=True)
         elif msg.topic == "conveyor/command/stop":
@@ -99,18 +100,26 @@ def on_message(_cli, _userdata, msg):
             alarm = ""
             decision = "STRAIGHT"
             alternate_flag = False
+            sensor1_prev = 0
             client.publish("conveyor/target/belt", "0", retain=True)
+            client.publish("conveyor/target/diverter", "0", retain=True)
             client.publish("conveyor/command/reset", "1", retain=False)
         elif msg.topic == "conveyor/command/mode":
-            mode = payload.lower() if payload.lower() in ("alternate", "divert_all", "pass_all") else "alternate"
-            if mode != "alternate":
-                alternate_flag = False
+            mode = payload.lower() if payload.lower() in ("manual", "alternate", "divert_all", "pass_all") else "alternate"
+            alternate_flag = False
+            if mode == "manual":
+                started = False
+                state = "MANUAL"
+                decision = "MANUAL"
+            else:
+                started = False
+                state = "IDLE"
 
 
 def tick():
     global sensor1_prev
     with lock:
-        if not started:
+        if mode == "manual" or not started:
             return
         if sensor1 == 1 and sensor1_prev == 0:
             decide_next()

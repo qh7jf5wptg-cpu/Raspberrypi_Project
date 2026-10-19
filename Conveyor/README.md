@@ -24,6 +24,7 @@ The PLC decides, part by part, whether to divert. Modes:
 
 | Mode | Behaviour |
 | --- | --- |
+| `manual` | PLC stands back; the HMI drives the belt and diverter directly |
 | `alternate` | divert every other part |
 | `divert_all` | divert every part |
 | `pass_all` | never divert |

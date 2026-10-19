@@ -208,7 +208,9 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: "Start"
                         onClicked: {
-                            bridge.publish("conveyor/command/mode", tag("mode", "alternate"))
+                            var m = tag("mode", "alternate")
+                            if (m === "manual") m = "alternate"
+                            bridge.publish("conveyor/command/mode", m)
                             bridge.publish("conveyor/command/start", "1")
                         }
                     }
@@ -229,6 +231,7 @@ ApplicationWindow {
                             var next = "alternate"
                             if (tag("mode", "") === "alternate") next = "divert_all"
                             else if (tag("mode", "") === "divert_all") next = "pass_all"
+                            else if (tag("mode", "") === "pass_all") next = "manual"
                             bridge.publish("conveyor/command/mode", next)
                         }
                     }
@@ -256,6 +259,7 @@ ApplicationWindow {
                         Button {
                             Layout.fillWidth: true
                             text: num("belt", 1) > 0.5 ? "Stop belt" : "Run belt"
+                            enabled: tag("mode", "") === "manual"
                             onClicked: bridge.publish("conveyor/target/belt",
                                                        num("belt", 1) > 0.5 ? "0" : "1")
                         }
@@ -263,6 +267,7 @@ ApplicationWindow {
                         Button {
                             Layout.fillWidth: true
                             text: num("diverter", 0) > 0.5 ? "Retract diverter" : "Extend diverter"
+                            enabled: tag("mode", "") === "manual"
                             onClicked: bridge.publish("conveyor/target/diverter",
                                                        num("diverter", 0) > 0.5 ? "0" : "1")
                         }
