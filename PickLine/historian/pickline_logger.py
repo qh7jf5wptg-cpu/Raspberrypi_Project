@@ -13,8 +13,9 @@ DB = os.environ.get("PICKLINE_DB", os.path.join(os.path.dirname(os.path.abspath(
 SAMPLE_S = 0.5
 
 tags = {"x": 0.0, "y": 0.0, "z": 60.0, "holding": 0, "belt": 0.0,
-        "belt_pos": -1.0, "placed": 0, "exited": 0, "state": "IDLE",
-        "mode": "auto", "gap": 1.5}
+        "belt_pos": -1.0, "speed": 90.0, "diverter": 0.0, "placed": 0,
+        "passed": 0, "diverted": 0, "exited": 0, "state": "IDLE",
+        "mode": "auto", "side": "down", "decision": "STRAIGHT", "gap": 1.5}
 con = None
 
 
@@ -22,11 +23,11 @@ def on_message(_client, _userdata, msg):
     key = msg.topic.split("/", 1)[-1] if msg.topic.startswith("pickline/") else msg.topic
     payload = msg.payload.decode("utf-8", "replace").strip()
     try:
-        if key in ("x", "y", "z", "belt", "belt_pos", "gap"):
+        if key in ("x", "y", "z", "belt", "belt_pos", "speed", "diverter", "gap"):
             tags[key] = float(payload)
-        elif key in ("holding", "placed", "exited"):
+        elif key in ("holding", "placed", "passed", "diverted", "exited"):
             tags[key] = int(float(payload))
-        elif key in ("state", "mode"):
+        elif key in ("state", "mode", "side", "decision"):
             tags[key] = payload
     except ValueError:
         pass
@@ -34,11 +35,13 @@ def on_message(_client, _userdata, msg):
 
 def store():
     con.execute(
-        "INSERT INTO log (ts, x, y, z, holding, belt, belt_pos, placed, exited,"
-        " state, mode, gap) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO log (ts, x, y, z, holding, belt, belt_pos, speed, diverter,"
+        " placed, passed, diverted, exited, state, mode, side, decision, gap)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (time.time(), tags["x"], tags["y"], tags["z"], tags["holding"],
-         tags["belt"], tags["belt_pos"], tags["placed"], tags["exited"],
-         tags["state"], tags["mode"], tags["gap"]),
+         tags["belt"], tags["belt_pos"], tags["speed"], tags["diverter"],
+         tags["placed"], tags["passed"], tags["diverted"], tags["exited"],
+         tags["state"], tags["mode"], tags["side"], tags["decision"], tags["gap"]),
     )
     con.commit()
 
@@ -71,8 +74,9 @@ def main():
     con = sqlite3.connect(DB)
     con.execute(
         "CREATE TABLE IF NOT EXISTS log (ts REAL, x REAL, y REAL, z REAL,"
-        " holding INTEGER, belt REAL, belt_pos REAL, placed INTEGER,"
-        " exited INTEGER, state TEXT, mode TEXT, gap REAL)"
+        " holding INTEGER, belt REAL, belt_pos REAL, speed REAL, diverter REAL,"
+        " placed INTEGER, passed INTEGER, diverted INTEGER, exited INTEGER,"
+        " state TEXT, mode TEXT, side TEXT, decision TEXT, gap REAL)"
     )
     con.commit()
     print("Logging to", DB)

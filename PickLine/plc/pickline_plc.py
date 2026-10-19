@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Soft PLC for the PickLine: gripper feeds a conveyor, one part at a time.
+"""Soft PLC for the PickLine: gantry feeds a conveyor, two bins, two exits.
 
 Auto sequence:
-    pick a part from the bin -> carry it to the belt infeed -> release ->
-    wait until that part exits the belt -> wait the gap -> pick the next one.
+    pick from the chosen bin (down / up / alternate) -> carry to the belt
+    infeed -> release -> choose the part's route at the END of the belt
+    (straight / divert) -> wait until the part exits -> wait the gap ->
+    pick the next one.
 
-The gap (seconds between a part leaving the belt and the next pick) is
-adjustable at runtime.
+Routing follows `divert_mode`:
+    pass      - every part goes straight off the end
+    divert    - every part turns onto the side lane at the end
+    alternate - every other part is diverted
 
 Commands:
-    mosquitto_pub -t pickline/command/mode  -m auto|manual
-    mosquitto_pub -t pickline/command/gap   -m 2.5
-    mosquitto_pub -t pickline/command/start -m 1
-    mosquitto_pub -t pickline/command/stop  -m 1
-    mosquitto_pub -t pickline/command/reset -m 1
+    mosquitto_pub -t pickline/command/mode   -m auto|manual
+    mosquitto_pub -t pickline/command/side   -m down|up|alternate
+    mosquitto_pub -t pickline/command/divert -m pass|divert|alternate
+    mosquitto_pub -t pickline/command/gap    -m 2.5
+    mosquitto_pub -t pickline/command/start  -m 1
+    mosquitto_pub -t pickline/command/stop   -m 1
+    mosquitto_pub -t pickline/command/reset  -m 1
 """
 import math
 import os
@@ -26,25 +32,25 @@ BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = int(os.environ.get("MQTT_PORT", "1883"))
 LOOP_HZ = 10.0
 
-PICK = (260.0, 20.0, 0.0)
+PICK_DOWN = (260.0, 20.0, 0.0)
+PICK_UP = (260.0, 190.0, 0.0)
 DROP = (0.0, 100.0, 0.0)
-HOME = (0.0, 0.0, 60.0)
 TRAVEL_Z = 60.0
 TOL = 2.0               # mm
 STEP_TIMEOUT = 15.0     # seconds per motion step
 WAIT_TIMEOUT = 30.0     # seconds to wait for a part to exit the belt
 DEFAULT_GAP = 1.5       # seconds between exit and the next pick
 
-# (state name, kind, argument)
+# (state name, kind, argument) — pick/drop targets resolve at runtime.
 SEQUENCE = [
-    ("TO_PICK",    "move", (PICK[0], PICK[1], TRAVEL_Z)),
-    ("LOWER_PICK", "move", PICK),
+    ("TO_PICK",    "move", "pick_z"),
+    ("LOWER_PICK", "move", "pick"),
     ("GRIP",       "grip", 0),
-    ("LIFT_PICK",  "move", (PICK[0], PICK[1], TRAVEL_Z)),
-    ("TO_DROP",    "move", (DROP[0], DROP[1], TRAVEL_Z)),
-    ("LOWER_DROP", "move", DROP),
+    ("LIFT_PICK",  "move", "pick_z"),
+    ("TO_DROP",    "move", "drop_z"),
+    ("LOWER_DROP", "move", "drop"),
     ("RELEASE",    "grip", 1),
-    ("LIFT_DROP",  "move", (DROP[0], DROP[1], TRAVEL_Z)),
+    ("LIFT_DROP",  "move", "drop_z"),
     ("WAIT_EXIT",  "wait_exit", None),
 ]
 
@@ -56,6 +62,12 @@ state = "IDLE"
 mode = "auto"
 started = False
 gap = DEFAULT_GAP
+side = "down"               # current pick side
+side_mode = "alternate"     # down / up / alternate
+side_alt = False
+divert_mode = "alternate"   # pass / divert / alternate
+decision = "STRAIGHT"
+alternate_flag = False
 alarm = ""
 step_idx = 0
 step_started = 0.0
@@ -68,6 +80,35 @@ part_exited_at = 0.0
 last = {}
 
 
+def current_pick():
+    return PICK_UP if side == "up" else PICK_DOWN
+
+
+def choose_side():
+    global side, side_alt
+    if side_mode == "down":
+        side = "down"
+    elif side_mode == "up":
+        side = "up"
+    else:  # alternate
+        side_alt = not side_alt
+        side = "up" if side_alt else "down"
+
+
+def move_target(kind):
+    if kind == "pick":
+        x, y, _z = current_pick()
+        return (x, y, 0.0)
+    if kind == "pick_z":
+        x, y, _z = current_pick()
+        return (x, y, TRAVEL_Z)
+    if kind == "drop":
+        return DROP
+    if kind == "drop_z":
+        return (DROP[0], DROP[1], TRAVEL_Z)
+    return (0.0, 0.0, TRAVEL_Z)
+
+
 def at_target():
     """True when the plant is idle and sitting on the commanded point."""
     name, kind, arg = SEQUENCE[step_idx]
@@ -75,9 +116,27 @@ def at_target():
         return False
     if kind != "move":
         return True
-    return (abs(tags["x"] - arg[0]) <= TOL
-            and abs(tags["y"] - arg[1]) <= TOL
-            and abs(tags["z"] - arg[2]) <= TOL)
+    tx, ty, tz = move_target(arg)
+    return (abs(tags["x"] - tx) <= TOL
+            and abs(tags["y"] - ty) <= TOL
+            and abs(tags["z"] - tz) <= TOL)
+
+
+def apply_diverter(value):
+    global decision
+    decision = "DIVERT" if value else "STRAIGHT"
+    client.publish("pickline/target/diverter", "1" if value else "0", retain=False)
+
+
+def decide_next():
+    global alternate_flag
+    if divert_mode == "divert":
+        apply_diverter(True)
+    elif divert_mode == "pass":
+        apply_diverter(False)
+    else:  # alternate
+        alternate_flag = not alternate_flag
+        apply_diverter(alternate_flag)
 
 
 def enter_step(index, now):
@@ -88,33 +147,37 @@ def enter_step(index, now):
     name, kind, arg = SEQUENCE[index]
     state = name
     if kind == "move":
-        client.publish("pickline/target/x", "%.1f" % arg[0], retain=True)
-        client.publish("pickline/target/y", "%.1f" % arg[1], retain=True)
-        client.publish("pickline/target/z", "%.1f" % arg[2], retain=True)
+        tx, ty, tz = move_target(arg)
+        client.publish("pickline/target/x", "%.1f" % tx, retain=False)
+        client.publish("pickline/target/y", "%.1f" % ty, retain=False)
+        client.publish("pickline/target/z", "%.1f" % tz, retain=False)
     elif kind == "grip":
-        client.publish("pickline/target/grip", str(arg), retain=True)
+        client.publish("pickline/target/grip", str(arg), retain=False)
     elif kind == "wait_exit":
+        decide_next()
         exit_base = tags["exited"]
         part_exited = False
         part_exited_at = 0.0
 
 
 def hold_position():
-    client.publish("pickline/target/x", "%.1f" % tags["x"], retain=True)
-    client.publish("pickline/target/y", "%.1f" % tags["y"], retain=True)
-    client.publish("pickline/target/z", "%.1f" % tags["z"], retain=True)
+    client.publish("pickline/target/x", "%.1f" % tags["x"], retain=False)
+    client.publish("pickline/target/y", "%.1f" % tags["y"], retain=False)
+    client.publish("pickline/target/z", "%.1f" % tags["z"], retain=False)
 
 
 def start_auto():
-    global started, alarm, exit_base, part_exited, part_exited_at
+    global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag
     started = True
     alarm = ""
+    alternate_flag = False
     # Clear the line so exactly one part is in flight per cycle.
     client.publish("pickline/plant/reset", "1", retain=False)
-    client.publish("pickline/target/belt", "1", retain=True)
+    client.publish("pickline/target/belt", "1", retain=False)
     exit_base = 0
     part_exited = False
     part_exited_at = 0.0
+    choose_side()
     enter_step(0, time.monotonic())
 
 
@@ -129,7 +192,7 @@ def on_connect(cli, *_args):
 
 
 def on_message(_cli, _userdata, msg):
-    global mode, started, state, gap, alarm, step_idx
+    global mode, started, state, gap, side_mode, divert_mode, alarm, step_idx
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -155,13 +218,14 @@ def on_message(_cli, _userdata, msg):
             started = False
             state = "IDLE"
             hold_position()
-            client.publish("pickline/target/belt", "0", retain=True)
+            client.publish("pickline/target/belt", "0", retain=False)
         elif msg.topic == "pickline/command/reset":
             started = False
             alarm = ""
             step_idx = 0
             state = "IDLE"
-            client.publish("pickline/target/belt", "0", retain=True)
+            client.publish("pickline/target/belt", "0", retain=False)
+            client.publish("pickline/target/diverter", "0", retain=False)
             client.publish("pickline/plant/reset", "1", retain=False)
         elif msg.topic == "pickline/command/mode":
             mode = "manual" if payload.lower().startswith("m") else "auto"
@@ -176,6 +240,10 @@ def on_message(_cli, _userdata, msg):
                 gap = max(0.0, min(30.0, float(payload)))
             except ValueError:
                 pass
+        elif msg.topic == "pickline/command/side":
+            side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
+        elif msg.topic == "pickline/command/divert":
+            divert_mode = payload.lower() if payload.lower() in ("pass", "divert", "alternate") else "alternate"
 
 
 def step_done(now):
@@ -204,6 +272,7 @@ def tick(now):
             step_idx += 1
             if step_idx >= len(SEQUENCE):
                 step_idx = 0
+                choose_side()
             enter_step(step_idx, now)
             return
 
@@ -212,13 +281,17 @@ def tick(now):
             started = False
             state = "FAULT"
             alarm = "Timeout in " + name
-            client.publish("pickline/target/belt", "0", retain=True)
+            client.publish("pickline/target/belt", "0", retain=False)
 
 
 def publish_status():
     values = {
         "pickline/state": state,
         "pickline/mode": mode,
+        "pickline/side": side,
+        "pickline/side_mode": side_mode,
+        "pickline/divert_mode": divert_mode,
+        "pickline/decision": decision,
         "pickline/gap": "%.2f" % gap,
         "pickline/alarm": alarm,
     }

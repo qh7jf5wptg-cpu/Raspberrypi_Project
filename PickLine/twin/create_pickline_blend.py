@@ -1,4 +1,4 @@
-"""Create the Blender scene for the PickLine (gripper + conveyor)."""
+"""Create the Blender scene for the PickLine (gantry + conveyor, two exits)."""
 import bpy
 from mathutils import Vector
 
@@ -40,27 +40,43 @@ def box(name, loc, scale, mat):
     return obj
 
 
-belt_mat = material("Belt", (0.35, 0.38, 0.42), roughness=0.7)
+floor_mat = material("Floor", (0.10, 0.11, 0.13), roughness=0.9)
+belt_mat = material("Belt", (0.32, 0.35, 0.40), roughness=0.75)
+lane_mat = material("Lane", (0.55, 0.44, 0.26), roughness=0.75)
 roller_mat = material("Roller", (0.55, 0.58, 0.62), metallic=0.6, roughness=0.3)
-frame_mat = material("Frame", (0.25, 0.30, 0.38), metallic=0.5, roughness=0.4)
+frame_mat = material("Frame", (0.24, 0.29, 0.36), metallic=0.5, roughness=0.4)
 bin_mat = material("Bin", (0.80, 0.62, 0.10), roughness=0.5)
+gate_mat = material("Gate", (0.85, 0.30, 0.22), roughness=0.4)
 tool_mat = material("Tool", (0.90, 0.45, 0.12), roughness=0.4)
 part_mat = material("Part", (0.95, 0.78, 0.10), roughness=0.35)
 sensor_mat = material("Sensor", (0.18, 0.22, 0.26), roughness=0.5)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
 
-# Conveyor belt: 4 m long along X, at Y = 1 m, thin on the ground.
+# Floor.
+bpy.ops.mesh.primitive_plane_add(size=12, location=(2.0, 1.1, 0.0))
+floor = bpy.context.object
+floor.name = "Floor"
+floor.data.materials.append(floor_mat)
+
+# Straight belt: 4 m along X at Y = 1 m.
 box("Belt", (2.0, 1.0, 0.04), (2.0, 0.09, 0.02), belt_mat)
 add_cylinder("RollerL", (0.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
 add_cylinder("RollerR", (4.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
 
-# Gantry frame: a beam spanning over the belt and the bin.
+# Side lane: turns +Y at the END of the belt (x = 4).
+box("Lane", (4.0, 1.6, 0.04), (0.09, 0.6, 0.02), lane_mat)
+
+# End gate (pivots when diverting).
+box("Gate", (4.0, 1.12, 0.08), (0.035, 0.16, 0.03), gate_mat)
+
+# Gantry frame.
 box("FrameBeam", (1.5, 0.9, 1.0), (1.5, 0.05, 0.05), frame_mat)
 box("FramePostA", (0.0, 0.9, 0.5), (0.05, 0.05, 0.5), frame_mat)
 box("FramePostB", (3.0, 0.9, 0.5), (0.05, 0.05, 0.5), frame_mat)
 
-# Bin at the far end of the gantry area.
-box("Bin", (2.6, 0.2, 0.10), (0.16, 0.16, 0.10), bin_mat)
+# Two bins: DOWN at y = 0.2, UP at y = 1.9.
+box("BinDown", (2.6, 0.2, 0.10), (0.16, 0.16, 0.10), bin_mat)
+box("BinUp", (2.6, 1.9, 0.10), (0.16, 0.16, 0.10), bin_mat)
 
 # Gantry tool head and jaws.
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(0.0, 0.0, 0.6))
@@ -73,31 +89,32 @@ box("JawB", (0.0, -0.06, 0.42), (0.03, 0.03, 0.08), frame_mat)
 # The part (hidden off-screen until picked).
 box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_mat)
 
-# Sensors on the belt.
+# Sensors.
 box("SensorIn", (0.3, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorOut", (3.7, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
+box("SensorDivert", (4.0, 2.1, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")
-text.body = "IDLE   placed 0   exited 0"
+text.body = "IDLE   placed 0   straight 0   diverted 0"
 text.align_x = "CENTER"
 text_obj = bpy.data.objects.new("StatusText", text)
-text_obj.location = (2.0, 2.4, 1.8)
+text_obj.location = (2.0, 2.6, 2.0)
 text_obj.scale = (0.14, 0.14, 0.14)
 text_obj.data.materials.append(text_mat)
 bpy.context.collection.objects.link(text_obj)
 
 # Camera and light.
 cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-cam.location = (2.0, -3.8, 2.6)
+cam.location = (2.0, -4.2, 3.0)
 bpy.context.collection.objects.link(cam)
-look = Vector((2.0, 1.0, 0.5)) - cam.location
+look = Vector((2.0, 1.2, 0.4)) - cam.location
 cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
 bpy.context.scene.camera = cam
 
 sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", type="SUN"))
-sun.data.energy = 4.0
-sun.location = (2, -6, 8)
+sun.data.energy = 4.5
+sun.location = (2, -6, 9)
 bpy.context.collection.objects.link(sun)
 
 world = bpy.context.scene.world

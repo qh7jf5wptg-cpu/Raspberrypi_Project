@@ -1,9 +1,11 @@
-# PickLine — Gripper Feeds a Conveyor
+# PickLine — Gantry Feeds a Conveyor with Two Exits
 
 A combined digital twin of a pick-and-place gantry and a conveyor belt. The
-gripper picks a part from a bin and drops it at the belt infeed; the belt
-carries it to the far end; once it exits, the gripper waits an adjustable gap
-and feeds the next part. One part is in flight at a time.
+gripper picks a part from one of two bins (down or up), drops it at the belt
+infeed, and the belt carries it the full length. Only at the end does the
+direction change: straight off the end, or a 90-degree turn onto a side lane.
+One part is in flight at a time, the belt speed is adjustable, and so is the
+gap between a part leaving and the next pick.
 
 ```
    plant model            soft PLC            clients
@@ -16,18 +18,22 @@ and feeds the next part. One part is in flight at a time.
 
 Unlike the separate Gripper and Conveyor projects, the two machines live in
 one plant process so they stay in lock-step, and the conveyor takes its parts
-from the gripper's drop instead of spawning them on a timer.
+from the gripper's drop instead of spawning them on a timer. The direction
+change happens at the belt's end, not mid-belt.
 
 ## The machine
 
 - **Gantry** — 3-axis (X 0–300, Y 0–220, Z 0–100 mm) with a two-finger
-  gripper. Picks at the bin `(260, 20)` and drops at the belt infeed
-  `(0, 100)`.
-- **Conveyor** — belt along X, 0–400 mm at Y = 100, running at 90 mm/s.
-- **Infeed sensor** — sees the part just after it lands on the belt (x = 30).
-- **Outfeed sensor** — sees the part just before it exits (x = 370).
-- **Gap** — adjustable seconds between a part leaving the belt and the next
-  pick (default 1.5 s, range 0–30 s).
+  gripper. Picks from one of two bins: **DOWN** `(260, 20)` or **UP**
+  `(260, 190)`, chosen per cycle (down / up / alternate). Drops at the belt
+  infeed `(0, 100)`.
+- **Conveyor** — belt along X, 0–400 mm at Y = 100, speed adjustable 20–250
+  mm/s (default 90 mm/s).
+- **End diverter** — at x = 400 the part either exits straight or turns onto
+  the side lane (Y 100 → 220).
+- **Sensors** — infeed `(30)`, outfeed `(370)`, and a side-lane sensor `(210)`.
+- **Gap** — seconds between a part leaving and the next pick (default 1.5 s,
+  range 0–30 s).
 
 ## Topic contract
 
@@ -40,10 +46,13 @@ Sensors (plant → everyone):
 | `pickline/holding` | 1 while a part is held |
 | `pickline/part_x`, `part_y`, `part_z` | part location, mm |
 | `pickline/belt` | 0 stopped / 1 running |
-| `pickline/belt_pos` | part position on the belt, mm (−1 = none) |
-| `pickline/sensor_in`, `sensor_out` | 1 while a part is in front of the sensor |
+| `pickline/belt_pos` | part position on the straight belt, mm (−1 = none) |
+| `pickline/speed` | belt speed, mm/s |
+| `pickline/diverter` | 0 straight / 1 divert |
+| `pickline/sensor_in`, `sensor_out`, `sensor_divert` | 1 while a part is in front |
 | `pickline/placed` | parts fed onto the belt |
-| `pickline/exited` | parts that left the belt |
+| `pickline/passed` | parts that went straight off the end |
+| `pickline/diverted` | parts that turned onto the side lane |
 
 Actuators (PLC or HMI → plant):
 
@@ -52,6 +61,8 @@ Actuators (PLC or HMI → plant):
 | `pickline/target/x`, `y`, `z` | commanded tool position, mm |
 | `pickline/target/grip` | 1 open / 0 close |
 | `pickline/target/belt` | 0 / 1 |
+| `pickline/target/diverter` | 0 / 1 |
+| `pickline/target/speed` | belt speed, mm/s |
 | `pickline/plant/reset` | clear belt and counters |
 
 PLC status and commands:
@@ -60,9 +71,12 @@ PLC status and commands:
 | --- | --- |
 | `pickline/state` | IDLE, TO_PICK, GRIP, TO_DROP, WAIT_EXIT, FAULT, ... |
 | `pickline/mode` | auto / manual |
+| `pickline/side` | current pick side (down / up) |
+| `pickline/side_mode` | down / up / alternate |
+| `pickline/divert_mode` | pass / divert / alternate |
+| `pickline/decision` | STRAIGHT / DIVERT (current part) |
 | `pickline/gap` | seconds between exit and next pick |
-| `pickline/alarm` | last fault message |
-| `pickline/command/start`, `stop`, `reset`, `mode`, `gap` | control |
+| `pickline/command/start`, `stop`, `reset`, `mode`, `side`, `divert`, `gap` | control |
 
 Heartbeats: `pickline/plant/alive` and `pickline/plc/alive` (1/s, retained).
 
@@ -94,15 +108,18 @@ python3 historian/pickline_logger.py
 Start the loop:
 
 ```sh
-mosquitto_pub -t pickline/command/mode -m auto
-mosquitto_pub -t pickline/command/gap  -m 2.0
-mosquitto_pub -t pickline/command/start -m 1
+mosquitto_pub -t pickline/command/mode   -m auto
+mosquitto_pub -t pickline/command/side   -m alternate
+mosquitto_pub -t pickline/command/divert -m alternate
+mosquitto_pub -t pickline/command/gap    -m 2.0
+mosquitto_pub -t pickline/command/start  -m 1
 ```
 
-Change the gap on the fly:
+Change the belt speed and gap on the fly:
 
 ```sh
-mosquitto_pub -t pickline/command/gap -m 4.5
+mosquitto_pub -t pickline/target/speed -m 150
+mosquitto_pub -t pickline/command/gap  -m 4.5
 ```
 
 Watch the tags:
@@ -120,10 +137,11 @@ cmake --build build
 open build/appPickLineHMI.app
 ```
 
-One canvas shows both machines: the belt with its two sensors, the drop zone,
-the bin, the moving part and the gantry tool. The side panel has the state,
-placed/exited counters, a gap slider, Start / Stop / Reset, and manual jog of
-the axes, gripper and belt.
+One canvas shows both machines: the belt, the end gate and side lane, the two
+bins, the drop zone, the sensors, the moving part and the gantry tool. The
+side panel has the state, placed/straight/diverted counters, gap and speed
+sliders, pick-side and end-routing buttons, Start / Stop / Reset, and manual
+jog of the axes, gripper, belt and gate.
 
 ## Blender twin
 
@@ -135,8 +153,9 @@ blender --background --python setup_pickline_text.py     # install RUN_PICKLINE.
 
 Open `PickLine_Twin.blend`, switch to the Scripting workspace and run
 **RUN_PICKLINE.py**. The gantry head and jaws move over the belt, the part
-travels along it, the two sensor cubes light green as it passes, the rollers
-spin while the belt runs, and the status line shows the state, counts and gap.
+travels along it, the end gate swings onto the side lane when diverting, the
+three sensor cubes light green as the part passes, the rollers spin at the
+current speed, and the status line shows the state, side, decision and counts.
 
 ## Notes
 
@@ -144,7 +163,7 @@ spin while the belt runs, and the status line shows the state, counts and gap.
   never the simulation's internals — the same boundary a real PLC has against
   a physical cell.
 - The gap is applied after the part exits, so there is never more than one
-  part on the belt. A 30 s timeout turns a lost part into a `FAULT` instead of
+  part on the line. A 30 s timeout turns a lost part into a `FAULT` instead of
   hanging.
 - `pickline.db` is a local recording and is git-ignored. Use
   `python3 historian/pickline_logger.py --stats` for a quick summary.

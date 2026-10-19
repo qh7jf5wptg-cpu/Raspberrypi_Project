@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""PickLine plant model: a pick-and-place gantry that feeds a conveyor belt.
+"""PickLine plant model: a gantry that feeds a conveyor, two bins, two exits.
 
 One plant owns both machines so they stay in lock-step:
-  * a 3-axis gantry with a two-finger gripper picks a part from a bin and
-    drops it at the belt infeed,
-  * the belt carries the part along X until it exits at the far end.
+  * a 3-axis gantry picks a part from one of two bins (DOWN at y = 20, UP at
+    y = 190) and drops it at the belt infeed,
+  * the belt carries the part the full length; only at the END does the
+    direction change: straight off the end, or a 90-degree side lane,
+  * the belt speed is adjustable at runtime.
 
 The soft PLC in ../plc/pickline_plc.py drives it through MQTT target topics.
 
@@ -24,18 +26,24 @@ PORT = int(os.environ.get("MQTT_PORT", "1883"))
 
 SPEED_MM_S = 140.0      # gantry axis travel speed
 GRIP_TIME = 0.35        # seconds for the jaws to open or close
-BELT_SPEED = 90.0       # belt speed, mm/s
+BELT_SPEED = 90.0       # default belt speed, mm/s
+BELT_SPEED_MIN = 20.0
+BELT_SPEED_MAX = 250.0
 BELT_TIME = 0.30        # seconds for the belt to start/stop
+DIVERT_TIME = 0.25      # seconds for the end diverter to swing
 LOOP_HZ = 20.0
 
 X_MAX, Y_MAX, Z_MAX = 300.0, 220.0, 100.0
-PICK = (260.0, 20.0, 0.0)       # part bin
+PICK_DOWN = (260.0, 20.0, 0.0)
+PICK_UP = (260.0, 190.0, 0.0)
 DROP = (0.0, 100.0, 0.0)        # belt infeed (belt runs along y = 100)
-PICK_TOL = 8.0                  # mm, xy tolerance to grab or drop a part
+PICK_TOL = 8.0
 
 BELT_LEN = 400.0                # belt runs x = 0 .. 400 at y = 100
 SENSOR_IN_X = 30.0              # infeed sensor
-SENSOR_OUT_X = 370.0            # outfeed sensor (just before the exit)
+SENSOR_OUT_X = 370.0            # near the end of the straight run
+DIVERT_Y = 120.0                # side lane length in +Y from the belt (100 -> 220)
+SENSOR_DIVERT_Y = 210.0         # sensor near the side-lane exit
 SENSOR_TOL = 6.0
 
 lock = threading.Lock()
@@ -49,11 +57,19 @@ placed = 0
 
 belt = 0.0
 belt_target = 0.0
-part_on_belt = False
-belt_pos = -1.0                 # -1 means no part on the belt
-exited = 0
+belt_speed = BELT_SPEED
+diverter = 0.0
+diverter_target = 0.0
+
+part_lane = "none"              # "none" | "belt" | "divert"
+part_x = -1.0
+part_y = -1.0
+passed = 0
+diverted = 0
+
 sensor_in = 0
 sensor_out = 0
+sensor_divert = 0
 
 last_published = {}
 
@@ -67,12 +83,14 @@ def near(xy, ref, tol):
 
 
 def reset_plant():
-    global part_held, placed, part_on_belt, belt_pos, exited
+    global part_held, placed, part_lane, part_x, part_y, passed, diverted
     part_held = False
     placed = 0
-    part_on_belt = False
-    belt_pos = -1.0
-    exited = 0
+    part_lane = "none"
+    part_x = -1.0
+    part_y = -1.0
+    passed = 0
+    diverted = 0
 
 
 def on_connect(client, *_args):
@@ -81,7 +99,7 @@ def on_connect(client, *_args):
 
 
 def on_message(_client, _userdata, msg):
-    global grip_target, belt_target
+    global grip_target, belt_target, diverter_target, belt_speed
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -95,6 +113,10 @@ def on_message(_client, _userdata, msg):
                 grip_target = 1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
             elif msg.topic == "pickline/target/belt":
                 belt_target = 1.0 if payload.lower() in ("1", "true", "on", "run") else 0.0
+            elif msg.topic == "pickline/target/diverter":
+                diverter_target = 1.0 if payload.lower() in ("1", "true", "on", "divert") else 0.0
+            elif msg.topic == "pickline/target/speed":
+                belt_speed = clamp(float(payload), BELT_SPEED_MIN, BELT_SPEED_MAX)
             elif msg.topic == "pickline/plant/reset":
                 reset_plant()
         except ValueError:
@@ -103,8 +125,8 @@ def on_message(_client, _userdata, msg):
 
 def step(dt):
     """Advance the plant by dt seconds."""
-    global grip, part_held, placed, belt, part_on_belt, belt_pos, exited
-    global sensor_in, sensor_out
+    global grip, part_held, placed, belt, diverter, part_lane, part_x, part_y
+    global passed, diverted, sensor_in, sensor_out, sensor_divert
 
     with lock:
         for i in range(3):
@@ -120,45 +142,70 @@ def step(dt):
         elif grip > grip_target:
             grip = max(grip_target, grip - dt / GRIP_TIME)
 
-        # Jaws closed at the bin -> grab the part.
-        if grip <= 0.05 and not part_held and near(pos, PICK, PICK_TOL) and pos[2] <= 5.0:
-            part_held = True
+        # Jaws closed at a bin -> grab the part.
+        if grip <= 0.05 and not part_held and pos[2] <= 5.0:
+            if near(pos, PICK_DOWN, PICK_TOL) or near(pos, PICK_UP, PICK_TOL):
+                part_held = True
 
         # Jaws opened while holding -> release the part.
         if grip >= 0.95 and part_held:
             part_held = False
             if near(pos, DROP, PICK_TOL) and pos[2] <= 5.0:
                 placed += 1
-                part_on_belt = True
-                belt_pos = 0.0
+                part_lane = "belt"
+                part_x = 0.0
+                part_y = DROP[1]
 
         if belt < belt_target:
             belt = min(belt_target, belt + dt / BELT_TIME)
         elif belt > belt_target:
             belt = max(belt_target, belt - dt / BELT_TIME)
 
-        if part_on_belt:
-            belt_pos += BELT_SPEED * belt * dt
-            if belt_pos >= BELT_LEN:
-                exited += 1
-                part_on_belt = False
-                belt_pos = -1.0
+        if diverter < diverter_target:
+            diverter = min(diverter_target, diverter + dt / DIVERT_TIME)
+        elif diverter > diverter_target:
+            diverter = max(diverter_target, diverter - dt / DIVERT_TIME)
 
-        sensor_in = 1 if (part_on_belt and abs(belt_pos - SENSOR_IN_X) < SENSOR_TOL) else 0
-        sensor_out = 1 if (part_on_belt and abs(belt_pos - SENSOR_OUT_X) < SENSOR_TOL) else 0
+        speed = belt_speed * belt
+
+        if part_lane == "belt":
+            part_x += speed * dt
+            if part_x >= BELT_LEN:
+                if diverter > 0.5:
+                    # Turn onto the side lane at the very end of the belt.
+                    part_lane = "divert"
+                    part_x = BELT_LEN
+                else:
+                    passed += 1
+                    part_lane = "none"
+                    part_x = -1.0
+                    part_y = -1.0
+        elif part_lane == "divert":
+            part_y += speed * dt
+            if part_y >= DROP[1] + DIVERT_Y:
+                diverted += 1
+                part_lane = "none"
+                part_x = -1.0
+                part_y = -1.0
+
+        sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
+        sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
+        sensor_divert = 1 if (part_lane == "divert" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
 
 
 def snapshot():
     with lock:
         busy = any(abs(target[i] - pos[i]) > 0.2 for i in range(3))
 
-        # Part location: follows the tool while held, rides the belt otherwise.
         if part_held:
-            part_x, part_y, part_z = pos
-        elif part_on_belt:
-            part_x, part_y, part_z = belt_pos, DROP[1], 0.0
+            px, py, pz = pos
+        elif part_lane in ("belt", "divert"):
+            px, py, pz = part_x, part_y, 0.0
         else:
-            part_x, part_y, part_z = -1.0, -1.0, -1.0
+            px, py, pz = -1.0, -1.0, -1.0
+
+        belt_pos = part_x if part_lane == "belt" else -1.0
+        exited = passed + diverted
 
         return {
             "pickline/x": "%.2f" % pos[0],
@@ -166,14 +213,19 @@ def snapshot():
             "pickline/z": "%.2f" % pos[2],
             "pickline/grip": "%.2f" % grip,
             "pickline/holding": "1" if part_held else "0",
-            "pickline/part_x": "%.2f" % part_x,
-            "pickline/part_y": "%.2f" % part_y,
-            "pickline/part_z": "%.2f" % part_z,
+            "pickline/part_x": "%.2f" % px,
+            "pickline/part_y": "%.2f" % py,
+            "pickline/part_z": "%.2f" % pz,
             "pickline/belt": "%.2f" % belt,
             "pickline/belt_pos": "%.1f" % belt_pos,
+            "pickline/speed": "%.0f" % belt_speed,
+            "pickline/diverter": "%.2f" % diverter,
             "pickline/sensor_in": "1" if sensor_in else "0",
             "pickline/sensor_out": "1" if sensor_out else "0",
+            "pickline/sensor_divert": "1" if sensor_divert else "0",
             "pickline/placed": str(placed),
+            "pickline/passed": str(passed),
+            "pickline/diverted": str(diverted),
             "pickline/exited": str(exited),
             "pickline/busy": "1" if busy else "0",
         }
