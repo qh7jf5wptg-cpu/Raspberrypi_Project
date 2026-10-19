@@ -5,7 +5,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     width: 1100
-    height: 900
+    height: 700
     visible: true
     title: qsTr("PickLine — Gripper + Conveyor HMI")
     color: "#eef2f8"
@@ -29,8 +29,14 @@ ApplicationWindow {
         target: bridge
         function onTagsChanged() {
             var now = Date.now()
-            if (bridge.tags["plant/alive"] !== undefined) plantSeen = now
-            if (bridge.tags["plc/alive"] !== undefined) plcSeen = now
+            if (bridge.tags["plant/alive"] !== undefined) {
+                plantSeen = now
+                plantOnline = true
+            }
+            if (bridge.tags["plc/alive"] !== undefined) {
+                plcSeen = now
+                plcOnline = true
+            }
         }
     }
 
@@ -40,15 +46,15 @@ ApplicationWindow {
         repeat: true
         onTriggered: {
             var now = Date.now()
-            plantOnline = (now - plantSeen) < 3500
-            plcOnline = (now - plcSeen) < 3500
+            plantOnline = (now - plantSeen) < 5000
+            plcOnline = (now - plcSeen) < 5000
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        anchors.margins: 14
+        spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
@@ -56,7 +62,7 @@ ApplicationWindow {
 
             Text {
                 text: "PickLine — Gripper + Conveyor"
-                font.pixelSize: 22
+                font.pixelSize: 20
                 font.bold: true
                 color: "#172033"
             }
@@ -72,7 +78,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 16
+            spacing: 14
 
             // Top view: belt along the middle, bins at right, side lane at the end.
             Rectangle {
@@ -195,16 +201,16 @@ ApplicationWindow {
 
             ColumnLayout {
                 id: rightPanel
-                Layout.preferredWidth: 330
-                Layout.minimumWidth: 330
-                Layout.maximumWidth: 330
+                Layout.preferredWidth: 320
+                Layout.minimumWidth: 320
+                Layout.maximumWidth: 320
                 Layout.fillHeight: true
-                spacing: 8
+                spacing: 7
 
-                // Machine state.
+                // Machine state (with compact axis readout).
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: stateColumn.implicitHeight + 24
+                    implicitHeight: stateColumn.implicitHeight + 20
                     radius: 12
                     color: "#ffffff"
                     border.color: "#dfe5ef"
@@ -212,7 +218,7 @@ ApplicationWindow {
                     ColumnLayout {
                         id: stateColumn
                         anchors.fill: parent
-                        anchors.margins: 12
+                        anchors.margins: 10
                         spacing: 2
 
                         Text {
@@ -223,34 +229,41 @@ ApplicationWindow {
                         }
                         Text {
                             text: plcOnline ? tag("state", "IDLE") : "PLC OFFLINE"
-                            font.pixelSize: 24
+                            font.pixelSize: 22
                             font.bold: true
                             color: (!plcOnline || tag("state", "") === "FAULT") ? "#c0392b" : "#172033"
+                        }
+                        Text {
+                            text: "X " + num("x", 0).toFixed(0)
+                                  + "   Y " + num("y", 0).toFixed(0)
+                                  + "   Z " + num("z", 0).toFixed(0) + " mm"
+                            font.pixelSize: 12
+                            color: "#637083"
                         }
                         Text {
                             text: "mode " + tag("mode", "auto")
                                   + "   ·   side " + tag("side", "down")
                                   + "   ·   route " + tag("decision", "STRAIGHT")
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             color: "#637083"
                         }
                         Text {
                             text: "placed " + tag("placed", "0")
                                   + "   ·   straight " + tag("passed", "0")
                                   + "   ·   diverted " + tag("diverted", "0")
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             color: "#637083"
                         }
                         Text {
                             text: (plantOnline ? "plant online" : "plant OFFLINE")
                                   + "   ·   " + (plcOnline ? "PLC online" : "PLC OFFLINE")
-                            font.pixelSize: 11
+                            font.pixelSize: 10
                             color: (plantOnline && plcOnline) ? "#2e7d32" : "#c0392b"
                         }
                         Text {
                             visible: tag("alarm", "").length > 0
                             text: tag("alarm", "")
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             color: "#c0392b"
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
@@ -258,45 +271,44 @@ ApplicationWindow {
                     }
                 }
 
-                // Axis readouts.
-                Rectangle {
+                // Commands.
+                GridLayout {
                     Layout.fillWidth: true
-                    implicitHeight: 58
-                    radius: 12
-                    color: "#ffffff"
-                    border.color: "#dfe5ef"
+                    columns: 2
+                    columnSpacing: 7
+                    rowSpacing: 7
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
-
-                        Repeater {
-                            model: ["x", "y", "z"]
-                            delegate: ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 0
-                                Text {
-                                    text: modelData.toUpperCase()
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    color: "#7f8c9b"
-                                }
-                                Text {
-                                    text: num(modelData, 0).toFixed(0) + " mm"
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                    color: "#172033"
-                                }
-                            }
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Start"
+                        onClicked: {
+                            bridge.publish("pickline/command/mode", "auto")
+                            bridge.publish("pickline/command/start", "1")
                         }
+                    }
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Stop"
+                        onClicked: bridge.publish("pickline/command/stop", "1")
+                    }
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Reset"
+                        onClicked: bridge.publish("pickline/command/reset", "1")
+                    }
+                    Button {
+                        Layout.fillWidth: true
+                        text: tag("mode", "auto") === "auto" ? "Manual mode" : "Auto mode"
+                        onClicked: bridge.publish(
+                            "pickline/command/mode",
+                            tag("mode", "auto") === "auto" ? "manual" : "auto")
                     }
                 }
 
                 // Gap and belt speed.
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: tuners.implicitHeight + 24
+                    implicitHeight: tuners.implicitHeight + 20
                     radius: 12
                     color: "#ffffff"
                     border.color: "#dfe5ef"
@@ -304,11 +316,11 @@ ApplicationWindow {
                     ColumnLayout {
                         id: tuners
                         anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 6
+                        anchors.margins: 10
+                        spacing: 5
 
                         Text {
-                            text: "GAP AFTER EXIT   " + num("gap", 1.5).toFixed(1) + " s"
+                            text: "GAP   " + num("gap", 1.5).toFixed(1) + " s"
                             font.pixelSize: 11
                             color: "#637083"
                         }
@@ -354,44 +366,10 @@ ApplicationWindow {
                     }
                 }
 
-                // Commands.
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 8
-                    rowSpacing: 8
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Start"
-                        onClicked: {
-                            bridge.publish("pickline/command/mode", "auto")
-                            bridge.publish("pickline/command/start", "1")
-                        }
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Stop"
-                        onClicked: bridge.publish("pickline/command/stop", "1")
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Reset"
-                        onClicked: bridge.publish("pickline/command/reset", "1")
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: tag("mode", "auto") === "auto" ? "Manual mode" : "Auto mode"
-                        onClicked: bridge.publish(
-                            "pickline/command/mode",
-                            tag("mode", "auto") === "auto" ? "manual" : "auto")
-                    }
-                }
-
                 // Pick side and end routing.
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: route.implicitHeight + 24
+                    implicitHeight: route.implicitHeight + 20
                     radius: 12
                     color: "#ffffff"
                     border.color: "#dfe5ef"
@@ -399,18 +377,18 @@ ApplicationWindow {
                     ColumnLayout {
                         id: route
                         anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 6
+                        anchors.margins: 10
+                        spacing: 5
 
-                        Text {
-                            text: "PICK SIDE   (" + tag("side_mode", "alternate") + ")"
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: "#7f8c9b"
-                        }
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
+                            Text {
+                                text: "SIDE"
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: "#7f8c9b"
+                            }
                             Button {
                                 Layout.fillWidth: true
                                 text: "Down"
@@ -423,20 +401,20 @@ ApplicationWindow {
                             }
                             Button {
                                 Layout.fillWidth: true
-                                text: "Alternate"
+                                text: "Alt"
                                 onClicked: bridge.publish("pickline/command/side", "alternate")
                             }
                         }
 
-                        Text {
-                            text: "END ROUTING   (" + tag("divert_mode", "alternate") + ")"
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: "#7f8c9b"
-                        }
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
+                            Text {
+                                text: "END"
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: "#7f8c9b"
+                            }
                             Button {
                                 Layout.fillWidth: true
                                 text: "Pass"
@@ -449,7 +427,7 @@ ApplicationWindow {
                             }
                             Button {
                                 Layout.fillWidth: true
-                                text: "Alternate"
+                                text: "Alt"
                                 onClicked: bridge.publish("pickline/command/divert", "alternate")
                             }
                         }
@@ -466,7 +444,7 @@ ApplicationWindow {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 12
+                        anchors.margins: 10
                         spacing: 2
 
                         Text {
@@ -484,7 +462,7 @@ ApplicationWindow {
 
                                 Text {
                                     text: modelData[0] + "   " + num(modelData[1], 0).toFixed(0) + " mm"
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10
                                     color: "#637083"
                                 }
 
@@ -511,7 +489,7 @@ ApplicationWindow {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: 6
                             Button {
                                 Layout.fillWidth: true
                                 text: "Open"
@@ -528,10 +506,10 @@ ApplicationWindow {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: 6
                             Button {
                                 Layout.fillWidth: true
-                                text: num("belt", 0) > 0.5 ? "Stop belt" : "Run belt"
+                                text: num("belt", 0) > 0.5 ? "Stop belt" : "Start belt"
                                 enabled: tag("mode", "auto") === "manual"
                                 onClicked: bridge.publish("pickline/target/belt",
                                                            num("belt", 0) > 0.5 ? "0" : "1")
