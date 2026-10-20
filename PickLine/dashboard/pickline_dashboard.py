@@ -40,13 +40,19 @@ def on_message(_client, _userdata, msg):
             fill_events.append(time.time())
 
 
+def _pct(key):
+    filled = int(float(latest.get("fill/%s/filled" % key, 0) or 0))
+    pickups = int(float(latest.get("fill/%s/pickups" % key, 1) or 1))
+    return min(100.0, filled / max(pickups, 1) * 100.0)
+
+
 def sampler():
     while True:
         time.sleep(1.0)
         now = time.time()
         with lock:
-            a = float(latest.get("fill/a/level", 0) or 0)
-            b = float(latest.get("fill/b/level", 0) or 0)
+            a = _pct("a")
+            b = _pct("b")
             history.append((now, a, b))
             while fill_events and fill_events[0] < now - 60:
                 fill_events.popleft()
@@ -94,6 +100,8 @@ HTML = """<!doctype html>
   .bar.full > div { background:var(--red); }
   .bar.fault > div { background:var(--red); }
   .chart-wrap { background:var(--card); border-radius:12px; padding:14px; }
+  .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  @media (max-width:640px){ .chart-row { grid-template-columns:1fr; } }
   canvas { max-height:300px; }
 </style>
 </head>
@@ -123,21 +131,34 @@ HTML = """<!doctype html>
       <p id="b-info" style="color:var(--muted);font-size:12px"></p>
     </div>
   </div>
+  <div class="chart-row">
+    <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
+    <div class="chart-wrap"><canvas id="chart-b"></canvas></div>
+  </div>
   <div class="chart-wrap"><canvas id="chart"></canvas></div>
 </main>
 <script>
-const A = [], B = [], L = [];
-const chart = new Chart(document.getElementById('chart'), {
-  type:'line',
-  data:{ labels:L, datasets:[
-    { label:'Station A', data:A, borderColor:'#4aa3df', backgroundColor:'#4aa3df22', tension:.3, pointRadius:0, fill:true },
-    { label:'Station B', data:B, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
-  ]},
-  options:{ responsive:true, animation:false, scales:{
-    x:{ ticks:{ color:'#8fa0b8', maxTicksLimit:8 } },
-    y:{ min:0, ticks:{ color:'#8fa0b8' } }
-  }, plugins:{ legend:{ labels:{ color:'#e8edf5' } } } }
-});
+const LA = [], LB = [], LC = [], DA = [], DB = [], DCA = [], DCB = [];
+function lineChart(id, labels, datasets){
+  return new Chart(document.getElementById(id), {
+    type:'line',
+    data:{ labels:labels, datasets:datasets },
+    options:{ responsive:true, animation:false,
+      scales:{ x:{ ticks:{ color:'#8fa0b8', maxTicksLimit:8 } },
+               y:{ min:0, max:100, ticks:{ color:'#8fa0b8' } } },
+      plugins:{ legend:{ labels:{ color:'#e8edf5' } } } }
+  });
+}
+const chartA = lineChart('chart-a', LA, [
+  { label:'Station A', data:DA, borderColor:'#4aa3df', backgroundColor:'#4aa3df22', tension:.3, pointRadius:0, fill:true }
+]);
+const chartB = lineChart('chart-b', LB, [
+  { label:'Station B', data:DB, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
+]);
+const chart = lineChart('chart', LC, [
+  { label:'Station A', data:DCA, borderColor:'#4aa3df', backgroundColor:'#4aa3df22', tension:.3, pointRadius:0, fill:true },
+  { label:'Station B', data:DCB, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
+]);
 
 function el(id){ return document.getElementById(id); }
 function barState(st){
@@ -169,11 +190,15 @@ async function poll(){
       el(p+'-info').textContent = filled+' / '+pickups+' pickups · '+(t['fill/'+k+'/count']||0)+' fills'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
     });
 
-    A.length = B.length = L.length = 0;
+    LA.length = DA.length = LB.length = DB.length = LC.length = DCA.length = DCB.length = 0;
     (d.history||[]).forEach(([ts,a,b]) => {
-      L.push(new Date(ts*1000).toLocaleTimeString());
-      A.push(a); B.push(b);
+      const t = new Date(ts*1000).toLocaleTimeString();
+      LA.push(t); DA.push(a);
+      LB.push(t); DB.push(b);
+      LC.push(t); DCA.push(a); DCB.push(b);
     });
+    chartA.update('none');
+    chartB.update('none');
     chart.update('none');
   } catch(e) { /* retry next tick */ }
 }
