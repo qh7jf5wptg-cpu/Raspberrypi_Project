@@ -62,6 +62,12 @@ ApplicationWindow {
                : s === "FILLING" ? "#4aa3df"
                : s === "FAULT" ? "#e74c3c" : "#9aa7b8"
     }
+    function machineRunning() {
+        if (tag("mode", "auto") !== "auto") return false
+        if (num("paused", 0) > 0 || num("estop", 0) > 0) return false
+        var inactive = ["IDLE", "MANUAL", "FAULT", "ESTOP"]
+        return inactive.indexOf(tag("state", "IDLE")) < 0
+    }
 
     property real plantSeen: 0
     property real plcSeen: 0
@@ -339,6 +345,26 @@ ApplicationWindow {
                             ctx.arc(tx, ty, 13 * s, 0, Math.PI * 2)
                             ctx.stroke()
                         }
+                    }
+                }
+
+                // Industrial stack light overlay (red top, yellow middle, green bottom).
+                Column {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.margins: 12
+                    spacing: 4
+                    Rectangle {
+                        width: 14; height: 14; radius: 7
+                        color: (num("estop", 0) > 0 || tag("state", "") === "FAULT") ? "#e74c3c" : "#2a3448"
+                    }
+                    Rectangle {
+                        width: 14; height: 14; radius: 7
+                        color: num("paused", 0) > 0 ? "#f1c40f" : "#2a3448"
+                    }
+                    Rectangle {
+                        width: 14; height: 14; radius: 7
+                        color: (machineRunning() && blinkOn) ? "#2ecc71" : "#2a3448"
                     }
                 }
             }

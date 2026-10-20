@@ -64,6 +64,14 @@ def box(name, loc, scale, mat):
     return obj
 
 
+def add_sphere(name, loc, radius, mat):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=loc)
+    obj = bpy.context.object
+    obj.name = name
+    obj.data.materials.append(mat)
+    return obj
+
+
 floor_mat = grid_material("Floor", (0.08, 0.09, 0.11), (0.12, 0.14, 0.17))
 belt_mat = material("Belt", (0.16, 0.18, 0.21), roughness=0.55)
 lane_mat = material("Lane", (0.42, 0.32, 0.18), roughness=0.6)
@@ -82,6 +90,9 @@ liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.15, emission=0.5
 nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.9, roughness=0.25)
 stream_mat = material("Stream", (0.35, 0.78, 0.98), emission=2.5)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
+light_red = material("LightRed", (1.0, 0.05, 0.05), roughness=0.3, emission=0.0)
+light_yellow = material("LightYellow", (1.0, 0.8, 0.05), roughness=0.3, emission=0.0)
+light_green = material("LightGreen", (0.05, 1.0, 0.1), roughness=0.3, emission=0.0)
 
 # Grid floor.
 bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
@@ -151,6 +162,12 @@ add_cylinder("NozzleA", (4.6, 1.0, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
 add_cylinder("StreamA", (4.6, 1.0, 0.67), (0.015, 0.015, 0.005), stream_mat)
 add_cylinder("NozzleB", (4.0, 2.4, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
 add_cylinder("StreamB", (4.0, 2.4, 0.67), (0.015, 0.015, 0.005), stream_mat)
+
+# Industrial stack light (red top, yellow middle, green bottom).
+add_cylinder("LightPole", (0.4, -0.4, 0.6), (0.03, 0.03, 0.6), frame_mat)
+add_sphere("LightGreen", (0.4, -0.4, 0.85), 0.07, light_green)
+add_sphere("LightYellow", (0.4, -0.4, 1.0), 0.07, light_yellow)
+add_sphere("LightRed", (0.4, -0.4, 1.15), 0.07, light_red)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")

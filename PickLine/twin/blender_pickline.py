@@ -4,6 +4,7 @@ Maps the plant's top-view world (mm) onto the Blender ground plane (m):
     world (x, y, z)  ->  Blender (x/100, y/100, z/100)
 """
 import os
+import time
 
 import bpy
 import paho.mqtt.client as mqtt
@@ -16,6 +17,7 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "diverter": 0.0, "sensor_in": 0, "sensor_out": 0, "sensor_divert": 0,
          "placed": 0, "exited": 0, "state": "IDLE", "side": "down",
          "decision": "STRAIGHT", "gap": 0.5, "volume": 100.0,
+         "paused": 0, "estop": 0,
          "fill/a/level": 0.0, "fill/a/state": "EMPTY", "fill/a/count": 0,
          "fill/a/filled": 0, "fill/a/pickups": 2, "fill/a/pouring": 0,
          "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
@@ -39,7 +41,8 @@ def on_message(_client, _userdata, msg):
     elif key in ("holding", "sensor_in", "sensor_out", "sensor_divert",
                  "placed", "exited", "fill/a/count", "fill/b/count",
                  "fill/a/filled", "fill/a/pickups", "fill/a/pouring",
-                 "fill/b/filled", "fill/b/pickups", "fill/b/pouring"):
+                 "fill/b/filled", "fill/b/pickups", "fill/b/pouring",
+                 "paused", "estop"):
         state[key] = int(_num(payload))
     elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state"):
         state[key] = payload
@@ -61,6 +64,20 @@ def _set_color(obj, color):
                 if node.type == "BSDF_PRINCIPLED":
                     node.inputs["Base Color"].default_value = color
                     break
+
+
+def _set_light(name, on, color, strength=6.0):
+    obj = _obj(name)
+    if obj is None or not obj.data.materials:
+        return
+    mat = obj.data.materials[0]
+    if not mat.use_nodes:
+        return
+    for node in mat.node_tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            node.inputs["Emission Color"].default_value = (*color, 1.0)
+            node.inputs["Emission Strength"].default_value = strength if on else 0.0
+            break
 
 
 _syncing = False
@@ -319,6 +336,20 @@ def apply_twin():
                         node.inputs["Base Color"].default_value = color
                         node.inputs["Emission Color"].default_value = color
                         break
+
+    # Industrial stack light: green blinks while running, yellow on pause, red on estop/fault.
+    active_states = {"TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK", "TO_DROP",
+                     "LOWER_DROP", "RELEASE", "LIFT_DROP", "WAIT_EXIT", "WAIT_STATION"}
+    running = (state.get("mode", "auto") == "auto"
+               and state.get("state", "IDLE") in active_states
+               and not state.get("paused", 0) and not state.get("estop", 0))
+    blink = int(time.time() * 2) % 2 == 0
+    red_on = state.get("estop", 0) or state.get("state", "") == "FAULT"
+    yellow_on = state.get("paused", 0)
+    green_on = running and blink
+    _set_light("LightRed", red_on, (1.0, 0.05, 0.05))
+    _set_light("LightYellow", yellow_on, (1.0, 0.8, 0.05))
+    _set_light("LightGreen", green_on, (0.05, 1.0, 0.1))
 
     sync_settings()
     return 0.05
