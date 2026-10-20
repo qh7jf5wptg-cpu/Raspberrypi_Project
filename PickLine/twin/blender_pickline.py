@@ -63,6 +63,149 @@ def _set_color(obj, color):
                     break
 
 
+_syncing = False
+
+
+def _mqtt_client():
+    return bpy.app.driver_namespace.get("pickline_client")
+
+
+def _publish(topic, payload):
+    client = _mqtt_client()
+    if client:
+        client.publish(topic, payload)
+
+
+class PicklineSettings(bpy.types.PropertyGroup):
+    gap: bpy.props.FloatProperty(
+        name="Gap (s)", default=0.5, min=0.0, max=10.0,
+        update=lambda self, ctx: None if _syncing else _publish(
+            "pickline/command/gap", "%.1f" % self.gap))
+    speed: bpy.props.IntProperty(
+        name="Belt speed (mm/s)", default=90, min=20, max=250,
+        update=lambda self, ctx: None if _syncing else _publish(
+            "pickline/target/speed", str(self.speed)))
+
+
+class PICKLINE_OT_publish(bpy.types.Operator):
+    bl_idname = "pickline.publish"
+    bl_label = "Publish MQTT"
+    bl_options = {'REGISTER', 'UNDO'}
+    topic: bpy.props.StringProperty()
+    payload: bpy.props.StringProperty()
+
+    def execute(self, context):
+        _publish(self.topic, self.payload)
+        return {'FINISHED'}
+
+
+class PICKLINE_OT_start(bpy.types.Operator):
+    bl_idname = "pickline.start"
+    bl_label = "Start auto cycle"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        _publish("pickline/command/mode", "auto")
+        _publish("pickline/command/start", "1")
+        return {'FINISHED'}
+
+
+class PICKLINE_PT_control(bpy.types.Panel):
+    bl_label = "PickLine Control"
+    bl_idname = "PICKLINE_PT_control"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "PickLine"
+
+    def draw(self, context):
+        layout = self.layout
+        settings = context.scene.pickline_settings
+
+        box = layout.box()
+        box.label(text="Status", icon="INFO")
+        box.label(text="Machine: %s" % state.get("state", "IDLE"))
+        box.label(text="A: %s %d/%d · done %d" % (
+            state.get("fill/a/state", "EMPTY"), state.get("fill/a/filled", 0),
+            state.get("fill/a/pickups", 2), state.get("fill/a/count", 0)))
+        box.label(text="B: %s %d/%d · done %d" % (
+            state.get("fill/b/state", "EMPTY"), state.get("fill/b/filled", 0),
+            state.get("fill/b/pickups", 5), state.get("fill/b/count", 0)))
+
+        box = layout.box()
+        box.label(text="Filling")
+        row = box.row(align=True)
+        op = row.operator("pickline.publish", text="Take out A")
+        op.topic = "pickline/fill/a/take"
+        op.payload = "1"
+        op = row.operator("pickline.publish", text="Take out B")
+        op.topic = "pickline/fill/b/take"
+        op.payload = "1"
+
+        box = layout.box()
+        box.label(text="Routing")
+        row = box.row(align=True)
+        op = row.operator("pickline.publish", text="Go straight")
+        op.topic = "pickline/target/diverter"
+        op.payload = "0"
+        op = row.operator("pickline.publish", text="Go left")
+        op.topic = "pickline/target/diverter"
+        op.payload = "1"
+
+        box = layout.box()
+        box.label(text="Cycle")
+        row = box.row(align=True)
+        row.operator("pickline.start", text="Start")
+        op = row.operator("pickline.publish", text="Stop")
+        op.topic = "pickline/command/stop"
+        op.payload = "1"
+        op = row.operator("pickline.publish", text="Reset")
+        op.topic = "pickline/command/reset"
+        op.payload = "1"
+
+        box = layout.box()
+        box.label(text="Faults")
+        row = box.row(align=True)
+        op = row.operator("pickline.publish", text="Jam belt")
+        op.topic = "pickline/fault/jam"
+        op.payload = "1"
+        op = row.operator("pickline.publish", text="Clear jam")
+        op.topic = "pickline/fault/clear"
+        op.payload = "1"
+
+        box = layout.box()
+        box.label(text="Settings")
+        box.prop(settings, "gap")
+        box.prop(settings, "speed")
+
+
+def register_panel():
+    for cls in (PicklineSettings, PICKLINE_OT_publish, PICKLINE_OT_start, PICKLINE_PT_control):
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            pass
+    if not hasattr(bpy.types.Scene, "pickline_settings"):
+        bpy.types.Scene.pickline_settings = bpy.props.PointerProperty(type=PicklineSettings)
+
+
+def sync_settings():
+    global _syncing
+    try:
+        settings = bpy.context.scene.pickline_settings
+    except Exception:
+        return
+    _syncing = True
+    try:
+        gap = float(state.get("gap", 0.5))
+        speed = int(state.get("speed", 90))
+        if abs(settings.gap - gap) > 0.05:
+            settings.gap = gap
+        if settings.speed != speed:
+            settings.speed = speed
+    finally:
+        _syncing = False
+
+
 def set_liquid(key, liquid_name, sx, sy):
     liquid = _obj(liquid_name)
     if liquid is None:
@@ -160,6 +303,7 @@ def apply_twin():
                         node.inputs["Emission Color"].default_value = color
                         break
 
+    sync_settings()
     return 0.05
 
 
@@ -185,6 +329,7 @@ def main():
     client.loop_start()
 
     bpy.app.driver_namespace["pickline_client"] = client
+    register_panel()
     bpy.app.driver_namespace["pickline_timer"] = apply_twin
     bpy.app.timers.register(apply_twin, first_interval=0.1)
     print("PickLine twin running (broker %s:%d)" % (BROKER, PORT))
