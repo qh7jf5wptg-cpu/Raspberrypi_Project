@@ -39,7 +39,7 @@ DROP = (0.0, 100.0, 0.0)
 TRAVEL_Z = 60.0
 TOL = 2.0
 STEP_TIMEOUT = 15.0
-WAIT_TIMEOUT = 30.0
+WAIT_TIMEOUT = 15.0
 DEFAULT_GAP = 0.5
 
 SEQUENCE = [
@@ -60,6 +60,7 @@ client = None
 
 tags = {"x": 0.0, "y": 0.0, "z": 60.0, "busy": 0, "holding": 0, "exited": 0}
 station = {"a": "EMPTY", "b": "EMPTY"}
+jam_flag = 0
 state = "IDLE"
 mode = "auto"
 started = False
@@ -169,10 +170,11 @@ def hold_position():
 
 
 def start_auto():
-    global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag
+    global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag, jam_flag
     started = True
     alarm = ""
     alternate_flag = False
+    jam_flag = 0
     client.publish("pickline/plant/reset", "1", retain=False)
     client.publish("pickline/target/belt", "1", retain=False)
     exit_base = 0
@@ -191,11 +193,12 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/exited")
     cli.subscribe("pickline/fill/a/state")
     cli.subscribe("pickline/fill/b/state")
+    cli.subscribe("pickline/jam")
     cli.subscribe("pickline/command/#")
 
 
 def on_message(_cli, _userdata, msg):
-    global mode, started, state, gap, side_mode, alarm, step_idx
+    global mode, started, state, gap, side_mode, alarm, step_idx, jam_flag
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -215,6 +218,8 @@ def on_message(_cli, _userdata, msg):
                 station["a"] = payload
             elif msg.topic == "pickline/fill/b/state":
                 station["b"] = payload
+            elif msg.topic == "pickline/jam":
+                jam_flag = int(float(payload or 0))
         except ValueError:
             pass
 
@@ -272,6 +277,13 @@ def tick(now):
         if mode != "auto" or not started:
             return
 
+        if jam_flag:
+            started = False
+            state = "FAULT"
+            alarm = "BELT JAM"
+            client.publish("pickline/target/belt", "0", retain=False)
+            return
+
         name, kind, _arg = SEQUENCE[step_idx]
 
         if step_done(now):
@@ -286,7 +298,7 @@ def tick(now):
         if kind != "wait_station" and now - step_started > timeout:
             started = False
             state = "FAULT"
-            alarm = "Timeout in " + name
+            alarm = "BELT JAM" if kind == "wait_exit" else "Timeout in " + name
             client.publish("pickline/target/belt", "0", retain=False)
 
 

@@ -57,7 +57,9 @@ ApplicationWindow {
     }
     function fillColor(key) {
         var s = fillState(key)
-        return s === "FULL" ? "#27ae60" : s === "FILLING" ? "#4aa3df" : "#9aa7b8"
+        return s === "FULL" ? "#27ae60"
+               : s === "FILLING" ? "#4aa3df"
+               : s === "FAULT" ? "#e74c3c" : "#9aa7b8"
     }
 
     property real plantSeen: 0
@@ -451,6 +453,22 @@ ApplicationWindow {
                         }
                     }
 
+                    // Fault controls.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Jam belt"
+                            onClicked: bridge.publish("pickline/fault/jam", "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Clear jam"
+                            onClicked: bridge.publish("pickline/fault/clear", "1")
+                        }
+                    }
+
                     // Filling stations.
                     Rectangle {
                         Layout.fillWidth: true
@@ -500,6 +518,13 @@ ApplicationWindow {
                                         font.pixelSize: 11
                                         font.bold: true
                                         color: fillColor(modelData[0])
+                                    }
+                                    Text {
+                                        visible: tag("fill/" + modelData[0] + "/alarm", "").length > 0
+                                        text: "⚠ " + tag("fill/" + modelData[0] + "/alarm", "")
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        color: "#e74c3c"
                                     }
                                     Rectangle {
                                         Layout.fillWidth: true

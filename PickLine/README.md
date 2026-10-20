@@ -138,6 +138,28 @@ Open `PickLine_Twin.blend` and run **RUN_PICKLINE.py**. The gantry and jaws
 move, the container rides the belt, and the two liquid columns rise as the
 stations fill, turning green when full.
 
+## Live dashboard
+
+```sh
+python3 dashboard/pickline_dashboard.py
+```
+
+Open <http://localhost:8080>. The page shows the machine state, both stations
+with live fill bars, total dispensed, throughput (fills/minute) and a live
+history chart. It subscribes straight to MQTT, so it works without the
+historian.
+
+## Faults
+
+| Fault | How it happens | Result |
+| --- | --- | --- |
+| Belt jam | `pickline/fault/jam -m 1` (or a stuck container) | PLC goes `FAULT`, alarm `BELT JAM` |
+| Overfill | lower `volume` below a station's current level | station goes `FAULT`, alarm `OVERFILL` |
+
+Clear a jam with `pickline/fault/clear -m 1` or a Reset. Clear an overfilled
+station with its Take out button. The HMI has "Jam belt" / "Clear jam" buttons,
+and shows each station's alarm.
+
 ## Notes
 
 - The plant and PLC are separate processes: the PLC only sees tag values,

@@ -78,10 +78,11 @@ exited = 0
 
 volume = VOLUME
 fill = {
-    "a": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_A_RATE},
-    "b": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_B_RATE},
+    "a": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_A_RATE, "alarm": ""},
+    "b": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_B_RATE, "alarm": ""},
 }
 total = 0.0
+jam = False
 
 sensor_in = 0
 sensor_out = 0
@@ -99,7 +100,7 @@ def near(xy, ref, tol):
 
 
 def reset_plant():
-    global part_held, placed, part_lane, part_x, part_y, exited, total
+    global part_held, placed, part_lane, part_x, part_y, exited, total, jam
     part_held = False
     placed = 0
     part_lane = "none"
@@ -107,10 +108,12 @@ def reset_plant():
     part_y = -1.0
     exited = 0
     total = 0.0
+    jam = False
     for key in ("a", "b"):
         fill[key]["state"] = "EMPTY"
         fill[key]["level"] = 0.0
         fill[key]["count"] = 0
+        fill[key]["alarm"] = ""
 
 
 def on_connect(client, *_args):
@@ -118,10 +121,11 @@ def on_connect(client, *_args):
     client.subscribe("pickline/plant/reset")
     client.subscribe("pickline/fill/a/take")
     client.subscribe("pickline/fill/b/take")
+    client.subscribe("pickline/fault/#")
 
 
 def on_message(_client, _userdata, msg):
-    global grip_target, belt_target, diverter_target, belt_speed, volume
+    global grip_target, belt_target, diverter_target, belt_speed, volume, jam
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -147,16 +151,22 @@ def on_message(_client, _userdata, msg):
                 fill["b"]["rate"] = clamp(float(payload), RATE_MIN, RATE_MAX)
             elif msg.topic == "pickline/fill/a/take":
                 if payload.lower() in ("1", "true", "on", "take"):
-                    if fill["a"]["state"] == "FULL":
+                    if fill["a"]["state"] in ("FULL", "FAULT"):
                         fill["a"]["state"] = "EMPTY"
                         fill["a"]["level"] = 0.0
+                        fill["a"]["alarm"] = ""
             elif msg.topic == "pickline/fill/b/take":
                 if payload.lower() in ("1", "true", "on", "take"):
-                    if fill["b"]["state"] == "FULL":
+                    if fill["b"]["state"] in ("FULL", "FAULT"):
                         fill["b"]["state"] = "EMPTY"
                         fill["b"]["level"] = 0.0
+                        fill["b"]["alarm"] = ""
             elif msg.topic == "pickline/plant/reset":
                 reset_plant()
+            elif msg.topic == "pickline/fault/jam":
+                jam = payload.lower() in ("1", "true", "on", "jam")
+            elif msg.topic == "pickline/fault/clear":
+                jam = False
         except ValueError:
             pass
 
@@ -212,10 +222,11 @@ def step(dt):
             diverter = max(diverter_target, diverter - dt / DIVERT_TIME)
 
         speed = belt_speed * belt
+        part_speed = 0.0 if jam else speed
 
         # Container: belt -> approach lane -> fill station.
         if part_lane == "belt":
-            part_x += speed * dt
+            part_x += part_speed * dt
             if part_x >= BELT_LEN:
                 if diverter > 0.5:
                     part_lane = "left"
@@ -225,7 +236,7 @@ def step(dt):
                     part_lane = "straight"
                     part_y = DROP[1]
         elif part_lane == "straight":
-            part_x += speed * dt
+            part_x += part_speed * dt
             if part_x >= STRAIGHT_END:
                 if fill["a"]["state"] == "EMPTY":
                     enter_station("a")
@@ -233,7 +244,7 @@ def step(dt):
                     part_lane = "wait_a"
                     part_x = STRAIGHT_END
         elif part_lane == "left":
-            part_y += speed * dt
+            part_y += part_speed * dt
             if part_y >= LEFT_END_Y:
                 if fill["b"]["state"] == "EMPTY":
                     enter_station("b")
@@ -260,6 +271,12 @@ def step(dt):
                     st["count"] += 1
                     total += volume
             else:
+                st["valve"] = 0
+
+            # Overfill: the volume was lowered below the current level.
+            if st["state"] != "FAULT" and st["level"] > volume + 0.5:
+                st["state"] = "FAULT"
+                st["alarm"] = "OVERFILL"
                 st["valve"] = 0
 
         sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
@@ -301,6 +318,7 @@ def snapshot():
             "pickline/busy": "1" if busy else "0",
             "pickline/volume": "%.0f" % volume,
             "pickline/fill/total": "%.1f" % total,
+            "pickline/jam": "1" if jam else "0",
         }
         for key in ("a", "b"):
             st = fill[key]
@@ -309,6 +327,7 @@ def snapshot():
             values["pickline/fill/%s/count" % key] = str(st["count"])
             values["pickline/fill/%s/valve" % key] = "1" if st["valve"] else "0"
             values["pickline/fill/%s/rate" % key] = "%.0f" % st["rate"]
+            values["pickline/fill/%s/alarm" % key] = st["alarm"]
         return values
 
 

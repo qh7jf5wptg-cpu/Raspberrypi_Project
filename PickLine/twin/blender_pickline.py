@@ -68,8 +68,28 @@ def set_liquid(key, liquid_name, sx, sy):
     h = max(0.02, (lvl / vol) * 0.54)
     liquid.scale = (0.13, 0.13, h)
     liquid.location = (sx, sy, 0.02 + h / 2.0)
-    full = state.get("fill/" + key + "/state", "") == "FULL"
-    _set_color(liquid, (0.15, 0.80, 0.35, 1.0) if full else (0.10, 0.55, 0.90, 1.0))
+    st = state.get("fill/" + key + "/state", "")
+    if st == "FAULT":
+        color = (0.90, 0.20, 0.15, 1.0)
+    elif st == "FULL":
+        color = (0.15, 0.80, 0.35, 1.0)
+    else:
+        color = (0.10, 0.55, 0.90, 1.0)
+    _set_color(liquid, color)
+
+
+def set_stream(key, stream_name, nozzle_name, sx, sy):
+    st = state.get("fill/" + key + "/state", "")
+    stream = _obj(stream_name)
+    nozzle = _obj(nozzle_name)
+    if stream:
+        if st == "FILLING":
+            stream.scale = (0.015, 0.015, 0.14)
+            stream.location = (sx, sy, 0.67)
+        else:
+            stream.scale = (0.015, 0.015, 0.005)
+    if nozzle:
+        nozzle.location = (sx, sy, 0.79 if st == "FILLING" else 0.84)
 
 
 def apply_twin():
@@ -111,6 +131,8 @@ def apply_twin():
 
     set_liquid("a", "LiquidA", 4.6, 1.0)
     set_liquid("b", "LiquidB", 4.0, 2.4)
+    set_stream("a", "StreamA", "NozzleA", 4.6, 1.0)
+    set_stream("b", "StreamB", "NozzleB", 4.0, 2.4)
 
     text = _obj("StatusText")
     if text:

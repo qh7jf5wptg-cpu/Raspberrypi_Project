@@ -63,6 +63,8 @@ part_mat = material("Part", (0.95, 0.78, 0.10), roughness=0.35)
 sensor_mat = material("Sensor", (0.18, 0.22, 0.26), roughness=0.5)
 tank_mat = tank_material("Tank", (0.75, 0.80, 0.86))
 liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.2, emission=0.4)
+nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.7, roughness=0.3)
+stream_mat = material("Stream", (0.35, 0.75, 0.95), emission=2.0)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
 
 # Floor.
@@ -119,6 +121,12 @@ box("TankA", (4.6, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
 box("LiquidA", (4.6, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
 box("TankB", (4.0, 2.4, 0.30), (0.17, 0.17, 0.30), tank_mat)
 box("LiquidB", (4.0, 2.4, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+
+# Nozzles and fill streams above each tank.
+add_cylinder("NozzleA", (4.6, 1.0, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
+add_cylinder("StreamA", (4.6, 1.0, 0.67), (0.015, 0.015, 0.005), stream_mat)
+add_cylinder("NozzleB", (4.0, 2.4, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
+add_cylinder("StreamB", (4.0, 2.4, 0.67), (0.015, 0.015, 0.005), stream_mat)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")
