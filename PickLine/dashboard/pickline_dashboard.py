@@ -28,6 +28,7 @@ latest = {}
 history = deque(maxlen=60)          # (epoch, a_level, b_level)
 fill_events = deque()               # timestamps of completed fills
 lock = threading.Lock()
+mqtt_client = None
 
 
 def on_message(_client, _userdata, msg):
@@ -91,6 +92,7 @@ HTML = """<!doctype html>
   .card { background:var(--card); border-radius:12px; padding:14px; }
   .card .label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
   .card .value { font-size:26px; font-weight:700; margin-top:4px; }
+  input[type=range] { width:100%; accent-color:var(--blue); margin-top:8px; }
   .stations { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
   @media (max-width:640px){ .stations { grid-template-columns:1fr; } }
   .station { background:var(--card); border-radius:12px; padding:14px; }
@@ -118,6 +120,18 @@ HTML = """<!doctype html>
     <div class="card"><div class="label">Throughput</div><div class="value" id="tput">0 /min</div></div>
     <div class="card"><div class="label">Placed</div><div class="value" id="placed">0</div></div>
     <div class="card"><div class="label">Entered stations</div><div class="value" id="exited">0</div></div>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="label">Gap after exit</div>
+      <div class="value" id="gap-val">0.5 s</div>
+      <input type="range" id="gap-slider" min="0" max="10" step="0.1" value="0.5">
+    </div>
+    <div class="card">
+      <div class="label">Belt speed</div>
+      <div class="value" id="speed-val">90 mm/s</div>
+      <input type="range" id="speed-slider" min="20" max="250" step="5" value="90">
+    </div>
   </div>
   <div class="stations">
     <div class="station">
@@ -166,6 +180,15 @@ function barState(st){
   el('state').className = 'state ' + (st || 'IDLE');
 }
 
+function send(topic, payload){
+  fetch('/set', { method:'POST', headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({topic:topic, payload:payload}) }).catch(()=>{});
+}
+const gapSlider = el('gap-slider');
+const speedSlider = el('speed-slider');
+gapSlider.addEventListener('change', () => send('pickline/command/gap', gapSlider.value));
+speedSlider.addEventListener('change', () => send('pickline/target/speed', speedSlider.value));
+
 async function poll(){
   try {
     const r = await fetch('/api');
@@ -178,6 +201,13 @@ async function poll(){
     el('tput').textContent = (d.fills_per_min||0) + ' /min';
     el('placed').textContent = t.placed || 0;
     el('exited').textContent = t.exited || 0;
+
+    const gap = parseFloat(t.gap||0.5)||0;
+    const speed = parseFloat(t.speed||90)||90;
+    el('gap-val').textContent = gap.toFixed(1) + ' s';
+    el('speed-val').textContent = speed.toFixed(0) + ' mm/s';
+    if (document.activeElement !== gapSlider) gapSlider.value = gap;
+    if (document.activeElement !== speedSlider) speedSlider.value = speed;
 
     [['a','a'],['b','b']].forEach(([k,p]) => {
       const filled = parseInt(t['fill/'+k+'/filled']||0)||0;
@@ -227,11 +257,32 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
 
+    def do_POST(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            topic = data.get("topic", "")
+            payload = str(data.get("payload", ""))
+            if topic.startswith("pickline/") and mqtt_client:
+                mqtt_client.publish(topic, payload)
+                code = 200
+            else:
+                code = 400
+        except Exception:
+            code = 400
+        body = b"{}"
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def log_message(self, *_args):
         pass
 
 
 def main():
+    global mqtt_client
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     except AttributeError:
@@ -240,6 +291,7 @@ def main():
     client.connect(BROKER, MQTT_PORT, 60)
     client.subscribe("pickline/#")
     client.loop_start()
+    mqtt_client = client
     print("Dashboard MQTT connected to %s:%d" % (BROKER, MQTT_PORT))
 
     threading.Thread(target=sampler, daemon=True).start()
