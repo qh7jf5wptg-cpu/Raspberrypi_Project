@@ -159,14 +159,14 @@ async function poll(){
     el('exited').textContent = t.exited || 0;
 
     [['a','a'],['b','b']].forEach(([k,p]) => {
-      const vol = parseFloat(t.volume||100)||100;
-      const lvl = parseFloat(t['fill/'+k+'/level']||0)||0;
+      const filled = parseInt(t['fill/'+k+'/filled']||0)||0;
+      const pickups = parseInt(t['fill/'+k+'/pickups']||1)||1;
       const st = t['fill/'+k+'/state']||'EMPTY';
-      const pct = Math.min(100, lvl/vol*100);
+      const pct = Math.min(100, filled/pickups*100);
       el(p+'-bar').style.width = pct + '%';
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
       el(p+'-state').textContent = st;
-      el(p+'-info').textContent = lvl.toFixed(1)+' / '+vol.toFixed(0)+' u · '+(t['fill/'+k+'/count']||0)+' fills · pass '+(t['fill/'+k+'/pass']||0)+'/'+(t['fill/'+k+'/passes']||0)+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
+      el(p+'-info').textContent = filled+' / '+pickups+' pickups · '+(t['fill/'+k+'/count']||0)+' fills'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
     });
 
     A.length = B.length = L.length = 0;

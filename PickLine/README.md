@@ -24,9 +24,9 @@ then blocks until the full container is taken out manually.
   mm/s. Past the belt end there is a short straight approach to station A
   `(460, 100)` and a left approach to station B `(400, 240)`.
 - **Two fill stations** — every container has the same adjustable volume
-  (default 100 units). A container is filled in discrete passes: station A
-  needs 2 passes (fast) and station B needs 5 passes (slow); both pass counts
-  are adjustable.
+  (default 100 units). Each delivered container pours its volume into the
+  station's tank: station A is full after 2 containers and station B after 5
+  containers (both counts adjustable).
 - **Routing** — when both stations are free the faster station (fewer passes)
   is preferred; when one is blocked the other is used; if neither is free the
   cell waits.
@@ -45,8 +45,8 @@ Sensors (plant → everyone):
 | `pickline/belt`, `speed`, `diverter` | conveyor state |
 | `pickline/placed`, `exited` | fed onto belt / entered a station |
 | `pickline/volume` | container capacity, units |
-| `pickline/fill/a/level`, `state`, `count`, `pass`, `passes`, `valve` | station A |
-| `pickline/fill/b/level`, `state`, `count`, `pass`, `passes`, `valve` | station B |
+| `pickline/fill/a/level`, `state`, `count`, `filled`, `pickups`, `pouring` | station A |
+| `pickline/fill/b/level`, `state`, `count`, `filled`, `pickups`, `pouring` | station B |
 | `pickline/fill/total` | total liquid dispensed, units |
 
 Actuators (PLC or HMI → plant):
@@ -55,7 +55,7 @@ Actuators (PLC or HMI → plant):
 | --- | --- |
 | `pickline/target/x`, `y`, `z`, `grip`, `belt`, `diverter`, `speed` | gantry/conveyor |
 | `pickline/target/volume` | container capacity (10–500) |
-| `pickline/target/fill/a/passes`, `fill/b/passes` | passes to fill (1–10) |
+| `pickline/target/fill/a/pickups`, `fill/b/pickups` | containers to fill (1–10) |
 | `pickline/fill/a/take`, `fill/b/take` | take out a full container |
 | `pickline/plant/reset` | clear belt, stations and counters |
 
@@ -103,8 +103,8 @@ Adjust the container volume and fill speeds:
 
 ```sh
 mosquitto_pub -t pickline/target/volume       -m 120
-mosquitto_pub -t pickline/target/fill/a/passes  -m 2
-mosquitto_pub -t pickline/target/fill/b/passes  -m 5
+mosquitto_pub -t pickline/target/fill/a/pickups  -m 2
+mosquitto_pub -t pickline/target/fill/b/pickups  -m 5
 ```
 
 Watch everything:

@@ -17,7 +17,9 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "placed": 0, "exited": 0, "state": "IDLE", "side": "down",
          "decision": "STRAIGHT", "gap": 0.5, "volume": 100.0,
          "fill/a/level": 0.0, "fill/a/state": "EMPTY", "fill/a/count": 0,
+         "fill/a/filled": 0, "fill/a/pickups": 2, "fill/a/pouring": 0,
          "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
+         "fill/b/filled": 0, "fill/b/pickups": 5, "fill/b/pouring": 0,
          "fill/total": 0.0}
 
 
@@ -35,7 +37,9 @@ def on_message(_client, _userdata, msg):
                "part_y", "gap", "volume", "fill/a/level", "fill/b/level", "fill/total"):
         state[key] = _num(payload, state[key])
     elif key in ("holding", "sensor_in", "sensor_out", "sensor_divert",
-                 "placed", "exited", "fill/a/count", "fill/b/count"):
+                 "placed", "exited", "fill/a/count", "fill/b/count",
+                 "fill/a/filled", "fill/a/pickups", "fill/a/pouring",
+                 "fill/b/filled", "fill/b/pickups", "fill/b/pouring"):
         state[key] = int(_num(payload))
     elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state"):
         state[key] = payload
@@ -63,9 +67,10 @@ def set_liquid(key, liquid_name, sx, sy):
     liquid = _obj(liquid_name)
     if liquid is None:
         return
-    vol = max(state.get("volume", 100.0), 1e-6)
-    lvl = max(0.0, state.get("fill/" + key + "/level", 0.0))
-    h = max(0.02, (lvl / vol) * 0.54)
+    filled = max(0, state.get("fill/" + key + "/filled", 0))
+    pickups = max(1, state.get("fill/" + key + "/pickups", 1))
+    frac = min(1.0, filled / pickups)
+    h = max(0.02, frac * 0.54)
     liquid.scale = (0.13, 0.13, h)
     liquid.location = (sx, sy, 0.02 + h / 2.0)
     st = state.get("fill/" + key + "/state", "")
@@ -79,17 +84,17 @@ def set_liquid(key, liquid_name, sx, sy):
 
 
 def set_stream(key, stream_name, nozzle_name, sx, sy):
-    st = state.get("fill/" + key + "/state", "")
+    pouring = state.get("fill/" + key + "/pouring", 0)
     stream = _obj(stream_name)
     nozzle = _obj(nozzle_name)
     if stream:
-        if st == "FILLING":
+        if pouring:
             stream.scale = (0.015, 0.015, 0.14)
             stream.location = (sx, sy, 0.67)
         else:
             stream.scale = (0.015, 0.015, 0.005)
     if nozzle:
-        nozzle.location = (sx, sy, 0.79 if st == "FILLING" else 0.84)
+        nozzle.location = (sx, sy, 0.79 if pouring else 0.84)
 
 
 def apply_twin():

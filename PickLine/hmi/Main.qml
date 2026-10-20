@@ -50,11 +50,11 @@ ApplicationWindow {
     function fillState(key) { return tag("fill/" + key + "/state", "EMPTY") }
     function fillLevel(key) { return num("fill/" + key + "/level", 0) }
     function fillCount(key) { return tag("fill/" + key + "/count", "0") }
-    function fillPasses(key) { return num("fill/" + key + "/passes", 2) }
-    function fillPass(key) { return num("fill/" + key + "/pass", 0) }
+    function fillPickups(key) { return num("fill/" + key + "/pickups", 2) }
+    function fillFilled(key) { return num("fill/" + key + "/filled", 0) }
     function fillPct(key) {
-        var v = num("volume", 100)
-        return v > 0 ? Math.min(100, fillLevel(key) / v * 100) : 0
+        var n = fillPickups(key)
+        return n > 0 ? Math.min(100, fillFilled(key) / n * 100) : 0
     }
     function fillColor(key) {
         var s = fillState(key)
@@ -190,8 +190,7 @@ ApplicationWindow {
 
                         // Fill stations beyond the two lanes.
                         function drawStation(cx, cy, key, label) {
-                            var vol = num("volume", 100)
-                            var level = fillLevel(key)
+                            var pct = fillPct(key)
                             var st = fillState(key)
                             var tankW = 20 * s
                             var tankH = 40 * s
@@ -201,7 +200,7 @@ ApplicationWindow {
                             ctx.fillStyle = "#eef1f5"
                             ctx.fillRect(x0, y0, tankW, tankH)
 
-                            var frac = vol > 0 ? Math.max(0, Math.min(1, level / vol)) : 0
+                            var frac = Math.max(0, Math.min(1, pct / 100))
                             var lh = frac * (tankH - 4)
                             ctx.fillStyle = "#4aa3df"
                             ctx.fillRect(x0 + 2, y0 + tankH - 2 - lh, tankW - 4, lh)
@@ -213,7 +212,7 @@ ApplicationWindow {
                             ctx.fillStyle = "#172033"
                             ctx.font = "bold 11px sans-serif"
                             ctx.fillText(label, cx, y0 - 7)
-                            ctx.fillText(level.toFixed(0), cx, y0 + tankH + 13)
+                            ctx.fillText(pct.toFixed(0) + "%", cx, y0 + tankH + 13)
                             ctx.font = "10px sans-serif"
                             ctx.fillStyle = "#637083"
                             ctx.fillText(st, cx, y0 + tankH + 25)
@@ -544,36 +543,36 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         spacing: 3
                                         Repeater {
-                                            model: fillPasses(key)
+                                            model: fillPickups(key)
                                             delegate: Rectangle {
                                                 width: 12
                                                 height: 12
                                                 radius: 6
-                                                color: index < fillPass(key) ? "#4aa3df" : "#d0d7e0"
+                                                color: index < fillFilled(key) ? "#4aa3df" : "#d0d7e0"
                                             }
                                         }
                                     }
                                     Text {
-                                        text: fillPct(modelData[0]).toFixed(0) + "%   ·   pass "
-                                              + fillPass(modelData[0]).toFixed(0)
-                                              + " / " + fillPasses(modelData[0]).toFixed(0)
+                                        text: fillPct(modelData[0]).toFixed(0) + "%   ·   filled "
+                                              + fillFilled(modelData[0]).toFixed(0)
+                                              + " / " + fillPickups(modelData[0]).toFixed(0)
                                         font.pixelSize: 10
                                         color: "#637083"
                                     }
                                     Slider {
-                                        id: passSlider
+                                        id: pickupsSlider
                                         Layout.fillWidth: true
                                         from: 1
                                         to: 10
-                                        value: fillPasses(modelData[0])
+                                        value: fillPickups(modelData[0])
                                         onMoved: if (pressed)
-                                            bridge.publish("pickline/target/fill/" + modelData[0] + "/passes",
+                                            bridge.publish("pickline/target/fill/" + modelData[0] + "/pickups",
                                                            Math.round(value).toString())
                                         Connections {
                                             target: bridge
                                             function onTagsChanged() {
-                                                if (!passSlider.pressed)
-                                                    passSlider.value = fillPasses(modelData[0])
+                                                if (!pickupsSlider.pressed)
+                                                    pickupsSlider.value = fillPickups(modelData[0])
                                             }
                                         }
                                     }

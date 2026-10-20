@@ -37,11 +37,11 @@ LOOP_HZ = 20.0
 VOLUME = 100.0          # container capacity, units (same for every container)
 VOLUME_MIN = 10.0
 VOLUME_MAX = 500.0
-FILL_A_PASSES = 2       # station A fills a container in 2 passes (fast)
-FILL_B_PASSES = 5       # station B fills a container in 5 passes (slow)
-PASSES_MIN = 1
-PASSES_MAX = 10
-PASS_TIME = 0.6         # seconds per fill pass
+FILL_A_PICKUPS = 2      # station A is full after 2 containers are poured in
+FILL_B_PICKUPS = 5      # station B is full after 5 containers are poured in
+PICKUPS_MIN = 1
+PICKUPS_MAX = 10
+POUR_TIME = 0.6         # seconds the pour stream is visible after a container
 
 X_MAX, Y_MAX, Z_MAX = 300.0, 220.0, 100.0
 PICK_DOWN = (260.0, 20.0, 0.0)
@@ -79,10 +79,10 @@ exited = 0
 
 volume = VOLUME
 fill = {
-    "a": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "passes": FILL_A_PASSES,
-          "pass": 0, "pass_timer": 0.0, "alarm": ""},
-    "b": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "passes": FILL_B_PASSES,
-          "pass": 0, "pass_timer": 0.0, "alarm": ""},
+    "a": {"state": "EMPTY", "level": 0.0, "filled": 0, "pickups": FILL_A_PICKUPS,
+          "count": 0, "alarm": "", "pouring": 0, "pour_timer": 0.0},
+    "b": {"state": "EMPTY", "level": 0.0, "filled": 0, "pickups": FILL_B_PICKUPS,
+          "count": 0, "alarm": "", "pouring": 0, "pour_timer": 0.0},
 }
 total = 0.0
 jam = False
@@ -115,8 +115,11 @@ def reset_plant():
     for key in ("a", "b"):
         fill[key]["state"] = "EMPTY"
         fill[key]["level"] = 0.0
+        fill[key]["filled"] = 0
         fill[key]["count"] = 0
         fill[key]["alarm"] = ""
+        fill[key]["pouring"] = 0
+        fill[key]["pour_timer"] = 0.0
 
 
 def on_connect(client, *_args):
@@ -148,25 +151,27 @@ def on_message(_client, _userdata, msg):
                 belt_speed = clamp(float(payload), BELT_SPEED_MIN, BELT_SPEED_MAX)
             elif msg.topic == "pickline/target/volume":
                 volume = clamp(float(payload), VOLUME_MIN, VOLUME_MAX)
-            elif msg.topic == "pickline/target/fill/a/passes":
-                fill["a"]["passes"] = int(clamp(float(payload), PASSES_MIN, PASSES_MAX))
-            elif msg.topic == "pickline/target/fill/b/passes":
-                fill["b"]["passes"] = int(clamp(float(payload), PASSES_MIN, PASSES_MAX))
+            elif msg.topic == "pickline/target/fill/a/pickups":
+                fill["a"]["pickups"] = int(clamp(float(payload), PICKUPS_MIN, PICKUPS_MAX))
+            elif msg.topic == "pickline/target/fill/b/pickups":
+                fill["b"]["pickups"] = int(clamp(float(payload), PICKUPS_MIN, PICKUPS_MAX))
             elif msg.topic == "pickline/fill/a/take":
                 if payload.lower() in ("1", "true", "on", "take"):
                     if fill["a"]["state"] in ("FULL", "FAULT"):
                         fill["a"]["state"] = "EMPTY"
                         fill["a"]["level"] = 0.0
-                        fill["a"]["pass"] = 0
-                        fill["a"]["pass_timer"] = 0.0
+                        fill["a"]["filled"] = 0
+                        fill["a"]["pouring"] = 0
+                        fill["a"]["pour_timer"] = 0.0
                         fill["a"]["alarm"] = ""
             elif msg.topic == "pickline/fill/b/take":
                 if payload.lower() in ("1", "true", "on", "take"):
                     if fill["b"]["state"] in ("FULL", "FAULT"):
                         fill["b"]["state"] = "EMPTY"
                         fill["b"]["level"] = 0.0
-                        fill["b"]["pass"] = 0
-                        fill["b"]["pass_timer"] = 0.0
+                        fill["b"]["filled"] = 0
+                        fill["b"]["pouring"] = 0
+                        fill["b"]["pour_timer"] = 0.0
                         fill["b"]["alarm"] = ""
             elif msg.topic == "pickline/plant/reset":
                 reset_plant()
@@ -179,11 +184,18 @@ def on_message(_client, _userdata, msg):
 
 
 def enter_station(key):
-    global part_lane, part_x, part_y, exited
-    fill[key]["state"] = "FILLING"
-    fill[key]["level"] = 0.0
-    fill[key]["pass"] = 0
-    fill[key]["pass_timer"] = 0.0
+    global part_lane, part_x, part_y, exited, total
+    st = fill[key]
+    st["filled"] += 1
+    st["level"] = st["filled"] * volume
+    st["pouring"] = 1
+    st["pour_timer"] = POUR_TIME
+    if st["filled"] >= st["pickups"]:
+        st["state"] = "FULL"
+        st["count"] += 1
+        total += st["level"]
+    else:
+        st["state"] = "FILLING"
     part_lane = "none"
     part_x = -1.0
     part_y = -1.0
@@ -247,7 +259,7 @@ def step(dt):
         elif part_lane == "straight":
             part_x += part_speed * dt
             if part_x >= STRAIGHT_END:
-                if fill["a"]["state"] == "EMPTY":
+                if fill["a"]["state"] not in ("FULL", "FAULT"):
                     enter_station("a")
                 else:
                     part_lane = "wait_a"
@@ -255,42 +267,32 @@ def step(dt):
         elif part_lane == "left":
             part_y += part_speed * dt
             if part_y >= LEFT_END_Y:
-                if fill["b"]["state"] == "EMPTY":
+                if fill["b"]["state"] not in ("FULL", "FAULT"):
                     enter_station("b")
                 else:
                     part_lane = "wait_b"
                     part_y = LEFT_END_Y
         elif part_lane == "wait_a":
-            if fill["a"]["state"] == "EMPTY":
+            if fill["a"]["state"] not in ("FULL", "FAULT"):
                 enter_station("a")
         elif part_lane == "wait_b":
-            if fill["b"]["state"] == "EMPTY":
+            if fill["b"]["state"] not in ("FULL", "FAULT"):
                 enter_station("b")
 
-        # Fill the container at each station, one pass at a time.
+        # Track the pour animation and detect overfill at each station.
         for key in ("a", "b"):
             st = fill[key]
-            if st["state"] == "FILLING":
-                st["valve"] = 1
-                st["pass_timer"] += dt
-                if st["pass_timer"] >= PASS_TIME:
-                    st["pass_timer"] -= PASS_TIME
-                    st["pass"] += 1
-                    st["level"] = min(volume, st["level"] + volume / max(st["passes"], 1))
-                    if st["pass"] >= st["passes"]:
-                        st["level"] = volume
-                        st["state"] = "FULL"
-                        st["valve"] = 0
-                        st["count"] += 1
-                        total += volume
-            else:
-                st["valve"] = 0
+            if st["pour_timer"] > 0:
+                st["pour_timer"] -= dt
+                if st["pour_timer"] <= 0:
+                    st["pour_timer"] = 0.0
+                    st["pouring"] = 0
 
-            # Overfill: the volume was lowered below the current level.
-            if st["state"] != "FAULT" and st["level"] > volume + 0.5:
+            # Overfill: volume or pickups were lowered below the current level.
+            if st["state"] != "FAULT" and st["level"] > st["pickups"] * volume + 0.5:
                 st["state"] = "FAULT"
                 st["alarm"] = "OVERFILL"
-                st["valve"] = 0
+                st["pouring"] = 0
 
         sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
         sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
@@ -338,9 +340,9 @@ def snapshot():
             values["pickline/fill/%s/state" % key] = st["state"]
             values["pickline/fill/%s/level" % key] = "%.1f" % st["level"]
             values["pickline/fill/%s/count" % key] = str(st["count"])
-            values["pickline/fill/%s/valve" % key] = "1" if st["valve"] else "0"
-            values["pickline/fill/%s/passes" % key] = str(st["passes"])
-            values["pickline/fill/%s/pass" % key] = str(st["pass"])
+            values["pickline/fill/%s/pickups" % key] = str(st["pickups"])
+            values["pickline/fill/%s/filled" % key] = str(st["filled"])
+            values["pickline/fill/%s/pouring" % key] = "1" if st["pouring"] else "0"
             values["pickline/fill/%s/alarm" % key] = st["alarm"]
         return values
 
