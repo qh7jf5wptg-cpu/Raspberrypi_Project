@@ -93,6 +93,10 @@ HTML = """<!doctype html>
   .card .label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
   .card .value { font-size:26px; font-weight:700; margin-top:4px; }
   input[type=range] { width:100%; accent-color:var(--blue); margin-top:8px; }
+  .route-btns { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+  .route-btns button { padding:7px; border:1px solid #2a3448; background:#1a2233; color:var(--muted);
+                        border-radius:6px; cursor:pointer; font-weight:700; }
+  .route-btns button.active { background:var(--blue); color:#fff; border-color:var(--blue); }
   .stations { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
   @media (max-width:640px){ .stations { grid-template-columns:1fr; } }
   .station { background:var(--card); border-radius:12px; padding:14px; }
@@ -136,6 +140,16 @@ HTML = """<!doctype html>
       <div class="label">Belt speed</div>
       <div class="value" id="speed-val">90 mm/s</div>
       <input type="range" id="speed-slider" min="20" max="250" step="5" value="90">
+    </div>
+    <div class="card">
+      <div class="label">Route direction</div>
+      <div class="value" id="route-val">auto</div>
+      <div class="route-btns">
+        <button data-route="auto">Auto</button>
+        <button data-route="straight">Straight</button>
+        <button data-route="left">Left</button>
+        <button data-route="alternate">Alt</button>
+      </div>
     </div>
   </div>
   <div class="stations">
@@ -197,6 +211,9 @@ gapSlider.addEventListener('change', () => send('pickline/command/gap', gapSlide
 speedSlider.addEventListener('change', () => send('pickline/target/speed', speedSlider.value));
 el('a-take').addEventListener('click', () => send('pickline/fill/a/take', '1'));
 el('b-take').addEventListener('click', () => send('pickline/fill/b/take', '1'));
+document.querySelectorAll('.route-btns button').forEach((btn) => {
+  btn.addEventListener('click', () => send('pickline/command/route', btn.dataset.route));
+});
 
 async function poll(){
   try {
@@ -219,6 +236,12 @@ async function poll(){
     el('speed-val').textContent = speed.toFixed(0) + ' mm/s';
     if (document.activeElement !== gapSlider) gapSlider.value = gap;
     if (document.activeElement !== speedSlider) speedSlider.value = speed;
+
+    const route = t.route_mode || 'auto';
+    el('route-val').textContent = route;
+    document.querySelectorAll('.route-btns button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.route === route);
+    });
 
     [['a','a'],['b','b']].forEach(([k,p]) => {
       const filled = parseInt(t['fill/'+k+'/filled']||0)||0;
