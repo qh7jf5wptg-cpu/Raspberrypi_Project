@@ -68,6 +68,12 @@ ApplicationWindow {
         var inactive = ["IDLE", "MANUAL", "FAULT", "ESTOP"]
         return inactive.indexOf(tag("state", "IDLE")) < 0
     }
+    function canPause() {
+        if (tag("mode", "auto") !== "auto") return false
+        if (num("paused", 0) > 0 || num("estop", 0) > 0) return false
+        var beforeRelease = ["TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK", "TO_DROP", "LOWER_DROP"]
+        return beforeRelease.indexOf(tag("state", "IDLE")) >= 0
+    }
 
     property real plantSeen: 0
     property real plcSeen: 0
@@ -249,7 +255,7 @@ ApplicationWindow {
 
                         // Industrial stack light above the drop point.
                         var lx = X(0)
-                        var ly = Y(100) - 84
+                        var ly = Y(100) - 128
                         var lr = 11
                         var lsp = 28
                         var topY = ly - lsp - lr - 7
@@ -519,11 +525,29 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         spacing: 6
                         Button {
+                            id: pauseBtn
                             Layout.fillWidth: true
                             text: tag("paused", "0") === "1" ? "Resume" : "Pause"
+                            enabled: tag("paused", "0") === "1" || canPause()
                             onClicked: bridge.publish(
                                 tag("paused", "0") === "1" ? "pickline/command/resume" : "pickline/command/pause",
                                 "1")
+                            background: Rectangle {
+                                radius: 4
+                                border.color: "#b8c4d2"
+                                color: !pauseBtn.enabled ? "#1a2233"
+                                       : tag("paused", "0") === "1" ? "#f1c40f"
+                                       : "#d0d7e0"
+                            }
+                            contentItem: Text {
+                                text: pauseBtn.text
+                                color: !pauseBtn.enabled ? "#6b7688"
+                                       : tag("paused", "0") === "1" ? "#1a1a1a"
+                                       : "#172033"
+                                font.pixelSize: 13
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                         Button {
                             Layout.fillWidth: true

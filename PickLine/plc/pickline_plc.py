@@ -215,7 +215,8 @@ def start_auto():
     alarm = ""
     alternate_flag = False
     jam_flag = 0
-    client.publish("pickline/plant/reset", "1", retain=False)
+    # Clear any part on the belt but keep fill stations and production counts.
+    client.publish("pickline/clear_belt", "1", retain=False)
     client.publish("pickline/target/belt", "1", retain=False)
     exit_base = 0
     part_exited = False
