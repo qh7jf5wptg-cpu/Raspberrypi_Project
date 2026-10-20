@@ -21,6 +21,17 @@ def material(name, color, metallic=0.0, roughness=0.5, emission=0.0):
     return m
 
 
+def tank_material(name, color):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+    bsdf.inputs["Alpha"].default_value = 0.25
+    bsdf.inputs["Roughness"].default_value = 0.15
+    m.blend_method = "BLEND"
+    return m
+
+
 def add_cylinder(name, loc, scale, mat, rot=(0, 0, 0)):
     bpy.ops.mesh.primitive_cylinder_add(radius=1, depth=1, location=loc)
     obj = bpy.context.object
@@ -50,6 +61,8 @@ gate_mat = material("Gate", (0.85, 0.30, 0.22), roughness=0.4)
 tool_mat = material("Tool", (0.90, 0.45, 0.12), roughness=0.4)
 part_mat = material("Part", (0.95, 0.78, 0.10), roughness=0.35)
 sensor_mat = material("Sensor", (0.18, 0.22, 0.26), roughness=0.5)
+tank_mat = tank_material("Tank", (0.75, 0.80, 0.86))
+liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.2, emission=0.4)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
 
 # Floor.
@@ -97,6 +110,12 @@ box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_mat)
 box("SensorIn", (0.3, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorOut", (3.7, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorDivert", (4.0, 2.1, 0.08), (0.025, 0.025, 0.025), sensor_mat)
+
+# Two fill stations: A at the straight end, B at the left end.
+box("TankA", (4.0, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
+box("LiquidA", (4.0, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+box("TankB", (4.0, 2.2, 0.30), (0.17, 0.17, 0.30), tank_mat)
+box("LiquidB", (4.0, 2.2, 0.03), (0.13, 0.13, 0.03), liquid_mat)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")

@@ -4,10 +4,10 @@ import QtQuick.Layouts
 
 ApplicationWindow {
     id: window
-    width: 1100
-    height: 900
+    width: 1120
+    height: 760
     visible: true
-    title: qsTr("PickLine — Gripper + Conveyor HMI")
+    title: qsTr("PickLine — Gripper + Conveyor + Filling")
     color: "#eef2f8"
 
     function tag(name, fallback) {
@@ -46,6 +46,18 @@ ApplicationWindow {
         if (atBin(20)) return "at DOWN bin — close jaws"
         if (atBin(190)) return "at UP bin — close jaws"
         return "move to a bin (260, 20 or 190)"
+    }
+    function fillState(key) { return tag("fill/" + key + "/state", "EMPTY") }
+    function fillLevel(key) { return num("fill/" + key + "/level", 0) }
+    function fillCount(key) { return tag("fill/" + key + "/count", "0") }
+    function fillRate(key) { return num("fill/" + key + "/rate", 40) }
+    function fillPct(key) {
+        var v = num("volume", 100)
+        return v > 0 ? Math.min(100, fillLevel(key) / v * 100) : 0
+    }
+    function fillColor(key) {
+        var s = fillState(key)
+        return s === "FULL" ? "#27ae60" : s === "FILLING" ? "#4aa3df" : "#9aa7b8"
     }
 
     property real plantSeen: 0
@@ -89,7 +101,7 @@ ApplicationWindow {
             spacing: 8
 
             Text {
-                text: "PickLine — Gripper + Conveyor"
+                text: "PickLine — Gripper + Conveyor + Filling"
                 font.pixelSize: 20
                 font.bold: true
                 color: "#172033"
@@ -108,7 +120,6 @@ ApplicationWindow {
             Layout.fillHeight: true
             spacing: 14
 
-            // Top view: belt along the middle, bins at right, side lane at the end.
             Rectangle {
                 id: canvasPanel
                 Layout.fillWidth: true
@@ -134,32 +145,26 @@ ApplicationWindow {
                         var h = height
                         ctx.clearRect(0, 0, w, h)
 
-                        // World: X 0..400 (belt), Y 0..220 (gantry area).
-                        var s = Math.min((w - 48) / 400.0, (h - 48) / 220.0)
+                        var s = Math.min((w - 56) / 440.0, (h - 48) / 220.0)
                         var ox = (w - 400 * s) / 2
                         var oy = (h - 220 * s) / 2
 
                         function X(v) { return ox + v * s }
                         function Y(v) { return oy + (220 - v) * s }
 
-                        // Envelope.
                         ctx.strokeStyle = "#c9d2e0"
                         ctx.lineWidth = 2
                         ctx.strokeRect(ox, oy, 400 * s, 220 * s)
 
-                        // Side lane: turns +Y at the END of the belt (x = 400).
+                        // Side lane (left route to station B).
                         var gateX = X(400)
                         ctx.fillStyle = "#f4ead8"
                         ctx.fillRect(gateX - 7 * s, Y(220), 14 * s, 120 * s)
                         ctx.strokeStyle = "#c9b58d"
                         ctx.lineWidth = 1.5
                         ctx.strokeRect(gateX - 7 * s, Y(220), 14 * s, 120 * s)
-                        ctx.fillStyle = "#9a8460"
-                        ctx.font = "11px sans-serif"
-                        ctx.textAlign = "center"
-                        ctx.fillText("DIVERT", gateX, Y(220) - 8 * s)
 
-                        // Conveyor belt (straight run).
+                        // Conveyor belt.
                         var beltTop = Y(100) - 10 * s
                         ctx.fillStyle = "#e9edf3"
                         ctx.fillRect(X(0) - 6, beltTop, 406 * s, 20 * s)
@@ -167,19 +172,51 @@ ApplicationWindow {
                         ctx.lineWidth = 1.5
                         ctx.strokeRect(X(0) - 6, beltTop, 406 * s, 20 * s)
                         ctx.fillStyle = "#8a97a8"
+                        ctx.font = "11px sans-serif"
+                        ctx.textAlign = "center"
                         ctx.fillText("CONVEYOR", X(200), Y(100) + 24 * s)
 
-                        // End gate (direction changes only here).
-                        ctx.fillStyle = num("diverter", 0) > 0.5 ? "#e74c3c" : "#95a5a6"
-                        ctx.fillRect(gateX - 3, Y(100) - 16 * s, 6, 16 * s)
-                        ctx.fillText("GATE", gateX, Y(100) - 22 * s)
+                        // Fill stations at the two ends.
+                        function drawStation(cx, cy, key, label) {
+                            var vol = num("volume", 100)
+                            var level = fillLevel(key)
+                            var st = fillState(key)
+                            var tankW = 20 * s
+                            var tankH = 40 * s
+                            var x0 = cx - tankW / 2
+                            var y0 = cy - tankH / 2
 
-                        // Drop zone (belt infeed).
+                            ctx.fillStyle = "#eef1f5"
+                            ctx.fillRect(x0, y0, tankW, tankH)
+
+                            var frac = vol > 0 ? Math.max(0, Math.min(1, level / vol)) : 0
+                            var lh = frac * (tankH - 4)
+                            ctx.fillStyle = "#4aa3df"
+                            ctx.fillRect(x0 + 2, y0 + tankH - 2 - lh, tankW - 4, lh)
+
+                            ctx.strokeStyle = fillColor(key)
+                            ctx.lineWidth = 2.5
+                            ctx.strokeRect(x0, y0, tankW, tankH)
+
+                            ctx.fillStyle = "#172033"
+                            ctx.font = "bold 11px sans-serif"
+                            ctx.fillText(label, cx, y0 - 7)
+                            ctx.fillText(level.toFixed(0), cx, y0 + tankH + 13)
+                            ctx.font = "10px sans-serif"
+                            ctx.fillStyle = "#637083"
+                            ctx.fillText(st, cx, y0 + tankH + 25)
+                        }
+                        drawStation(X(400), Y(100), "a", "FILL A")
+                        drawStation(X(400), Y(220), "b", "FILL B")
+
+                        // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"
                         ctx.fillRect(X(0) - 8, Y(100) - 12 * s, 16, 24 * s)
+                        ctx.fillStyle = "#8a97a8"
+                        ctx.font = "11px sans-serif"
                         ctx.fillText("DROP", X(0), Y(100) - 18 * s)
 
-                        // Two bins; they turn yellow as you approach and green when ready.
+                        // Two bins.
                         function drawBin(binY, label) {
                             var st = binProximity(binY)
                             var bx = X(260) - 12
@@ -200,13 +237,10 @@ ApplicationWindow {
                             }
                             ctx.fillRect(bx, by, bs, bs)
                             ctx.strokeRect(bx, by, bs, bs)
-
-                            // Part waiting in this bin (always available to grab).
                             ctx.fillStyle = st === "ready" ? "#ffffff" : "#7a4a00"
                             ctx.beginPath()
                             ctx.arc(X(260), Y(binY), 5, 0, Math.PI * 2)
                             ctx.fill()
-
                             ctx.fillStyle = st === "ready" ? "#ffffff"
                                             : st === "near" ? "#6e5400"
                                             : "#b58a00"
@@ -222,6 +256,7 @@ ApplicationWindow {
                             ctx.beginPath()
                             ctx.arc(cx, cy, 5 * s, 0, Math.PI * 2)
                             ctx.fill()
+                            ctx.fillStyle = "#8a97a8"
                             ctx.fillText(label, cx, cy - 14 * s)
                         }
                         ctx.fillStyle = num("sensor_in", 0) > 0 ? "#2ecc71" : "#b6c0ce"
@@ -231,7 +266,7 @@ ApplicationWindow {
                         ctx.fillStyle = num("sensor_divert", 0) > 0 ? "#2ecc71" : "#b6c0ce"
                         sensor(gateX, Y(210), "DIV")
 
-                        // Part: follows the tool while held, rides the line otherwise.
+                        // Part.
                         var holding = num("holding", 0) > 0
                         var partOnLine = !holding && num("part_x", -1) >= 0
                         var ppx = holding ? num("x", 0) : num("part_x", -1)
@@ -247,19 +282,18 @@ ApplicationWindow {
                             ctx.strokeStyle = holding ? "#27ae60" : "#8a6d00"
                             ctx.lineWidth = 2
                             ctx.stroke()
-
                             ctx.fillStyle = "#172033"
                             ctx.font = "bold 11px sans-serif"
                             ctx.textAlign = "center"
                             if (holding)
                                 ctx.fillText("HOLDING", partCx, partCy - 12 * s)
                             else if (num("part_y", 0) > 100)
-                                ctx.fillText("DIVERT", partCx, partCy - 12 * s)
+                                ctx.fillText("TO B", partCx, partCy - 12 * s)
                             else
-                                ctx.fillText("PART", partCx, partCy - 12 * s)
+                                ctx.fillText("TO A", partCx, partCy - 12 * s)
                         }
 
-                        // Gantry tool crosshair (green while holding, orange when empty).
+                        // Gantry tool crosshair.
                         var tx = X(num("x", 0))
                         var ty = Y(num("y", 0))
                         ctx.fillStyle = holding ? "#27ae60" : "#e67e22"
@@ -270,8 +304,6 @@ ApplicationWindow {
                         ctx.lineWidth = 1.5
                         ctx.beginPath(); ctx.moveTo(tx - 12 * s, ty); ctx.lineTo(tx + 12 * s, ty); ctx.stroke()
                         ctx.beginPath(); ctx.moveTo(tx, ty - 12 * s); ctx.lineTo(tx, ty + 12 * s); ctx.stroke()
-
-                        // Green ring around the tool when it is in grab position.
                         if (!holding && (atBin(20) || atBin(190))) {
                             ctx.strokeStyle = "#1e8449"
                             ctx.lineWidth = 3
@@ -283,350 +315,416 @@ ApplicationWindow {
                 }
             }
 
-            ColumnLayout {
-                id: rightPanel
-                Layout.preferredWidth: 320
-                Layout.minimumWidth: 320
-                Layout.maximumWidth: 320
+            ScrollView {
+                id: rightScroll
+                Layout.preferredWidth: 340
+                Layout.minimumWidth: 340
+                Layout.maximumWidth: 340
                 Layout.fillHeight: true
-                spacing: 7
+                clip: true
 
-                // Machine state (with compact axis readout).
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: stateColumn.implicitHeight + 20
-                    radius: 12
-                    color: "#ffffff"
-                    border.color: "#dfe5ef"
+                ColumnLayout {
+                    width: rightScroll.availableWidth
+                    spacing: 8
 
-                    ColumnLayout {
-                        id: stateColumn
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 2
-
-                        Text {
-                            text: "MACHINE STATE"
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: "#7f8c9b"
-                        }
-                        Text {
-                            text: plcOnline ? tag("state", "IDLE") : "PLC OFFLINE"
-                            font.pixelSize: 22
-                            font.bold: true
-                            color: (!plcOnline || tag("state", "") === "FAULT") ? "#c0392b" : "#172033"
-                        }
-                        Text {
-                            text: "X " + num("x", 0).toFixed(0)
-                                  + "   Y " + num("y", 0).toFixed(0)
-                                  + "   Z " + num("z", 0).toFixed(0) + " mm"
-                            font.pixelSize: 12
-                            color: "#637083"
-                        }
-                        Text {
-                            text: "mode " + tag("mode", "auto")
-                                  + "   ·   side " + tag("side", "down")
-                                  + "   ·   route " + tag("decision", "STRAIGHT")
-                            font.pixelSize: 11
-                            color: "#637083"
-                        }
-                        Text {
-                            text: "placed " + tag("placed", "0")
-                                  + "   ·   straight " + tag("passed", "0")
-                                  + "   ·   diverted " + tag("diverted", "0")
-                            font.pixelSize: 11
-                            color: "#637083"
-                        }
-                        Text {
-                            text: "GRIPPER: " + holdingState() + "   ·   jaws " + gripState()
-                            font.pixelSize: 12
-                            font.bold: true
-                            color: num("holding", 0) > 0 ? "#27ae60" : "#637083"
-                        }
-                        Text {
-                            text: "PICK: " + pickHint()
-                            font.pixelSize: 12
-                            font.bold: true
-                            color: num("holding", 0) > 0 ? "#27ae60"
-                                   : (atBin(20) || atBin(190)) ? "#27ae60"
-                                   : "#e67e22"
-                        }
-                        Text {
-                            text: "BELT: " + beltState()
-                            font.pixelSize: 12
-                            font.bold: true
-                            color: num("holding", 0) > 0 ? "#637083"
-                                   : num("part_x", -1) < 0 ? "#637083"
-                                   : num("part_y", 0) > 100 ? "#e74c3c"
-                                   : "#e67e22"
-                        }
-                        Text {
-                            text: (plantOnline ? "plant online" : "plant OFFLINE")
-                                  + "   ·   " + (plcOnline ? "PLC online" : "PLC OFFLINE")
-                            font.pixelSize: 10
-                            color: (plantOnline && plcOnline) ? "#2e7d32" : "#c0392b"
-                        }
-                        Text {
-                            visible: tag("alarm", "").length > 0
-                            text: tag("alarm", "")
-                            font.pixelSize: 11
-                            color: "#c0392b"
-                            wrapMode: Text.Wrap
-                            Layout.fillWidth: true
-                        }
-                    }
-                }
-
-                // Commands.
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 7
-                    rowSpacing: 7
-
-                    Button {
+                    // Machine state.
+                    Rectangle {
                         Layout.fillWidth: true
-                        text: "Start"
-                        onClicked: {
-                            bridge.publish("pickline/command/mode", "auto")
-                            bridge.publish("pickline/command/start", "1")
-                        }
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Stop"
-                        onClicked: bridge.publish("pickline/command/stop", "1")
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Reset"
-                        onClicked: bridge.publish("pickline/command/reset", "1")
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: tag("mode", "auto") === "auto" ? "Manual mode" : "Auto mode"
-                        onClicked: bridge.publish(
-                            "pickline/command/mode",
-                            tag("mode", "auto") === "auto" ? "manual" : "auto")
-                    }
-                }
+                        implicitHeight: stateColumn.implicitHeight + 20
+                        radius: 12
+                        color: "#ffffff"
+                        border.color: "#dfe5ef"
 
-                // Gap and belt speed.
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: tuners.implicitHeight + 20
-                    radius: 12
-                    color: "#ffffff"
-                    border.color: "#dfe5ef"
+                        ColumnLayout {
+                            id: stateColumn
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 2
 
-                    ColumnLayout {
-                        id: tuners
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 5
-
-                        Text {
-                            text: "GAP   " + num("gap", 1.5).toFixed(1) + " s"
-                            font.pixelSize: 11
-                            color: "#637083"
-                        }
-                        Slider {
-                            id: gapSlider
-                            Layout.fillWidth: true
-                            from: 0
-                            to: 10
-                            stepSize: 0.1
-                            value: num("gap", 1.5)
-                            onMoved: if (pressed)
-                                bridge.publish("pickline/command/gap", value.toFixed(1))
-                            Connections {
-                                target: bridge
-                                function onTagsChanged() {
-                                    if (!gapSlider.pressed)
-                                        gapSlider.value = num("gap", gapSlider.value)
-                                }
-                            }
-                        }
-
-                        Text {
-                            text: "BELT SPEED   " + num("speed", 90).toFixed(0) + " mm/s"
-                            font.pixelSize: 11
-                            color: "#637083"
-                        }
-                        Slider {
-                            id: speedSlider
-                            Layout.fillWidth: true
-                            from: 20
-                            to: 250
-                            value: num("speed", 90)
-                            onMoved: if (pressed)
-                                bridge.publish("pickline/target/speed", Math.round(value).toString())
-                            Connections {
-                                target: bridge
-                                function onTagsChanged() {
-                                    if (!speedSlider.pressed)
-                                        speedSlider.value = num("speed", speedSlider.value)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Pick side and end routing.
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: route.implicitHeight + 20
-                    radius: 12
-                    color: "#ffffff"
-                    border.color: "#dfe5ef"
-
-                    ColumnLayout {
-                        id: route
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 5
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
                             Text {
-                                text: "SIDE"
+                                text: "MACHINE STATE"
                                 font.pixelSize: 10
                                 font.bold: true
                                 color: "#7f8c9b"
                             }
-                            Button {
-                                Layout.fillWidth: true
-                                text: "Down"
-                                onClicked: bridge.publish("pickline/command/side", "down")
+                            Text {
+                                text: plcOnline ? tag("state", "IDLE") : "PLC OFFLINE"
+                                font.pixelSize: 22
+                                font.bold: true
+                                color: (!plcOnline || tag("state", "") === "FAULT") ? "#c0392b" : "#172033"
                             }
-                            Button {
-                                Layout.fillWidth: true
-                                text: "Up"
-                                onClicked: bridge.publish("pickline/command/side", "up")
+                            Text {
+                                text: "X " + num("x", 0).toFixed(0)
+                                      + "   Y " + num("y", 0).toFixed(0)
+                                      + "   Z " + num("z", 0).toFixed(0) + " mm"
+                                font.pixelSize: 12
+                                color: "#637083"
                             }
-                            Button {
+                            Text {
+                                text: "mode " + tag("mode", "auto")
+                                      + "   ·   side " + tag("side", "down")
+                                      + "   ·   route " + tag("decision", "STRAIGHT")
+                                font.pixelSize: 11
+                                color: "#637083"
+                            }
+                            Text {
+                                text: "placed " + tag("placed", "0")
+                                      + "   ·   entered " + tag("exited", "0")
+                                      + "   ·   total " + num("fill/total", 0).toFixed(0) + " u"
+                                font.pixelSize: 11
+                                color: "#637083"
+                            }
+                            Text {
+                                text: "GRIPPER: " + holdingState() + "   ·   jaws " + gripState()
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: num("holding", 0) > 0 ? "#27ae60" : "#637083"
+                            }
+                            Text {
+                                text: "PICK: " + pickHint()
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: num("holding", 0) > 0 ? "#27ae60"
+                                       : (atBin(20) || atBin(190)) ? "#27ae60"
+                                       : "#e67e22"
+                            }
+                            Text {
+                                text: (plantOnline ? "plant online" : "plant OFFLINE")
+                                      + "   ·   " + (plcOnline ? "PLC online" : "PLC OFFLINE")
+                                font.pixelSize: 10
+                                color: (plantOnline && plcOnline) ? "#2e7d32" : "#c0392b"
+                            }
+                            Text {
+                                visible: tag("alarm", "").length > 0
+                                text: tag("alarm", "")
+                                font.pixelSize: 11
+                                color: "#c0392b"
+                                wrapMode: Text.Wrap
                                 Layout.fillWidth: true
-                                text: "Alt"
-                                onClicked: bridge.publish("pickline/command/side", "alternate")
                             }
                         }
+                    }
 
-                        RowLayout {
+                    // Commands.
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: 7
+                        rowSpacing: 7
+
+                        Button {
                             Layout.fillWidth: true
+                            text: "Start"
+                            onClicked: {
+                                bridge.publish("pickline/command/mode", "auto")
+                                bridge.publish("pickline/command/start", "1")
+                            }
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Stop"
+                            onClicked: bridge.publish("pickline/command/stop", "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Reset"
+                            onClicked: bridge.publish("pickline/command/reset", "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: tag("mode", "auto") === "auto" ? "Manual mode" : "Auto mode"
+                            onClicked: bridge.publish(
+                                "pickline/command/mode",
+                                tag("mode", "auto") === "auto" ? "manual" : "auto")
+                        }
+                    }
+
+                    // Filling stations.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: fillColumn.implicitHeight + 20
+                        radius: 12
+                        color: "#ffffff"
+                        border.color: "#dfe5ef"
+
+                        ColumnLayout {
+                            id: fillColumn
+                            anchors.fill: parent
+                            anchors.margins: 10
                             spacing: 6
+
                             Text {
-                                text: "END"
+                                text: "FILLING   volume " + num("volume", 100).toFixed(0) + " u"
                                 font.pixelSize: 10
                                 font.bold: true
                                 color: "#7f8c9b"
                             }
-                            Button {
+                            Slider {
+                                id: volumeSlider
                                 Layout.fillWidth: true
-                                text: "Pass"
-                                onClicked: bridge.publish("pickline/command/divert", "pass")
-                            }
-                            Button {
-                                Layout.fillWidth: true
-                                text: "Divert"
-                                onClicked: bridge.publish("pickline/command/divert", "divert")
-                            }
-                            Button {
-                                Layout.fillWidth: true
-                                text: "Alt"
-                                onClicked: bridge.publish("pickline/command/divert", "alternate")
-                            }
-                        }
-                    }
-                }
-
-                // Manual jog.
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 12
-                    color: "#ffffff"
-                    border.color: "#dfe5ef"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 2
-
-                        Text {
-                            text: "MANUAL"
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: "#7f8c9b"
-                        }
-
-                        Repeater {
-                            model: [["X", "x", 300], ["Y", "y", 220], ["Z", "z", 100]]
-                            delegate: ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 0
-
-                                Text {
-                                    text: modelData[0] + "   " + num(modelData[1], 0).toFixed(0) + " mm"
-                                    font.pixelSize: 10
-                                    color: "#637083"
+                                from: 10
+                                to: 500
+                                value: num("volume", 100)
+                                onMoved: if (pressed)
+                                    bridge.publish("pickline/target/volume", Math.round(value).toString())
+                                Connections {
+                                    target: bridge
+                                    function onTagsChanged() {
+                                        if (!volumeSlider.pressed)
+                                            volumeSlider.value = num("volume", volumeSlider.value)
+                                    }
                                 }
+                            }
 
-                                Slider {
-                                    id: slider
+                            Repeater {
+                                model: [["a", "STATION A", "straight"], ["b", "STATION B", "left"]]
+                                delegate: ColumnLayout {
                                     Layout.fillWidth: true
-                                    from: 0
-                                    to: modelData[2]
-                                    enabled: tag("mode", "auto") === "manual"
-                                    onMoved: if (pressed)
-                                        bridge.publish("pickline/target/" + modelData[1],
-                                                       Math.round(value).toString())
+                                    spacing: 3
 
-                                    Connections {
-                                        target: bridge
-                                        function onTagsChanged() {
-                                            if (!slider.pressed)
-                                                slider.value = num(modelData[1], slider.value)
+                                    Text {
+                                        text: modelData[1] + " (" + modelData[2] + ")   " + fillState(modelData[0])
+                                              + "   " + fillCount(modelData[0]) + " fills"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        color: fillColor(modelData[0])
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 14
+                                        radius: 4
+                                        color: "#eef1f5"
+                                        Rectangle {
+                                            height: 14
+                                            width: parent.width * fillPct(modelData[0]) / 100
+                                            radius: 4
+                                            color: "#4aa3df"
                                         }
+                                    }
+                                    Text {
+                                        text: fillLevel(modelData[0]).toFixed(1) + " / " + num("volume", 100).toFixed(0)
+                                              + " u   @ " + fillRate(modelData[0]).toFixed(0) + " u/s"
+                                        font.pixelSize: 10
+                                        color: "#637083"
+                                    }
+                                    Slider {
+                                        id: rateSlider
+                                        Layout.fillWidth: true
+                                        from: 1
+                                        to: 200
+                                        value: fillRate(modelData[0])
+                                        onMoved: if (pressed)
+                                            bridge.publish("pickline/target/fill/" + modelData[0] + "/rate",
+                                                           Math.round(value).toString())
+                                        Connections {
+                                            target: bridge
+                                            function onTagsChanged() {
+                                                if (!rateSlider.pressed)
+                                                    rateSlider.value = fillRate(modelData[0])
+                                            }
+                                        }
+                                    }
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Take out"
+                                        enabled: fillState(modelData[0]) === "FULL"
+                                        onClicked: bridge.publish("pickline/fill/" + modelData[0] + "/take", "1")
                                     }
                                 }
                             }
                         }
+                    }
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button {
-                                Layout.fillWidth: true
-                                text: "Open"
-                                enabled: tag("mode", "auto") === "manual"
-                                onClicked: bridge.publish("pickline/target/grip", "1")
+                    // Gap and belt speed.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: tuners.implicitHeight + 20
+                        radius: 12
+                        color: "#ffffff"
+                        border.color: "#dfe5ef"
+
+                        ColumnLayout {
+                            id: tuners
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 5
+
+                            Text {
+                                text: "GAP   " + num("gap", 0.5).toFixed(1) + " s"
+                                font.pixelSize: 11
+                                color: "#637083"
                             }
-                            Button {
+                            Slider {
+                                id: gapSlider
                                 Layout.fillWidth: true
-                                text: "Close"
-                                enabled: tag("mode", "auto") === "manual"
-                                onClicked: bridge.publish("pickline/target/grip", "0")
+                                from: 0
+                                to: 10
+                                stepSize: 0.1
+                                value: num("gap", 0.5)
+                                onMoved: if (pressed)
+                                    bridge.publish("pickline/command/gap", value.toFixed(1))
+                                Connections {
+                                    target: bridge
+                                    function onTagsChanged() {
+                                        if (!gapSlider.pressed)
+                                            gapSlider.value = num("gap", gapSlider.value)
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "BELT SPEED   " + num("speed", 90).toFixed(0) + " mm/s"
+                                font.pixelSize: 11
+                                color: "#637083"
+                            }
+                            Slider {
+                                id: speedSlider
+                                Layout.fillWidth: true
+                                from: 20
+                                to: 250
+                                value: num("speed", 90)
+                                onMoved: if (pressed)
+                                    bridge.publish("pickline/target/speed", Math.round(value).toString())
+                                Connections {
+                                    target: bridge
+                                    function onTagsChanged() {
+                                        if (!speedSlider.pressed)
+                                            speedSlider.value = num("speed", speedSlider.value)
+                                    }
+                                }
                             }
                         }
+                    }
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Button {
+                    // Pick side.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: sideBox.implicitHeight + 20
+                        radius: 12
+                        color: "#ffffff"
+                        border.color: "#dfe5ef"
+
+                        ColumnLayout {
+                            id: sideBox
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 5
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: num("belt", 0) > 0.5 ? "Stop belt" : "Start belt"
-                                enabled: tag("mode", "auto") === "manual"
-                                onClicked: bridge.publish("pickline/target/belt",
-                                                           num("belt", 0) > 0.5 ? "0" : "1")
+                                spacing: 6
+                                Text {
+                                    text: "SIDE"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    color: "#7f8c9b"
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Down"
+                                    onClicked: bridge.publish("pickline/command/side", "down")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Up"
+                                    onClicked: bridge.publish("pickline/command/side", "up")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Alt"
+                                    onClicked: bridge.publish("pickline/command/side", "alternate")
+                                }
                             }
-                            Button {
+                        }
+                    }
+
+                    // Manual jog.
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: manualColumn.implicitHeight + 20
+                        radius: 12
+                        color: "#ffffff"
+                        border.color: "#dfe5ef"
+
+                        ColumnLayout {
+                            id: manualColumn
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 2
+
+                            Text {
+                                text: "MANUAL"
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: "#7f8c9b"
+                            }
+
+                            Repeater {
+                                model: [["X", "x", 300], ["Y", "y", 220], ["Z", "z", 100]]
+                                delegate: ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    Text {
+                                        text: modelData[0] + "   " + num(modelData[1], 0).toFixed(0) + " mm"
+                                        font.pixelSize: 10
+                                        color: "#637083"
+                                    }
+
+                                    Slider {
+                                        id: jogSlider
+                                        Layout.fillWidth: true
+                                        from: 0
+                                        to: modelData[2]
+                                        enabled: tag("mode", "auto") === "manual"
+                                        onMoved: if (pressed)
+                                            bridge.publish("pickline/target/" + modelData[1],
+                                                           Math.round(value).toString())
+                                        Connections {
+                                            target: bridge
+                                            function onTagsChanged() {
+                                                if (!jogSlider.pressed)
+                                                    jogSlider.value = num(modelData[1], jogSlider.value)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: num("diverter", 0) > 0.5 ? "Retract gate" : "Extend gate"
-                                enabled: tag("mode", "auto") === "manual"
-                                onClicked: bridge.publish("pickline/target/diverter",
-                                                           num("diverter", 0) > 0.5 ? "0" : "1")
+                                spacing: 6
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Open"
+                                    enabled: tag("mode", "auto") === "manual"
+                                    onClicked: bridge.publish("pickline/target/grip", "1")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Close"
+                                    enabled: tag("mode", "auto") === "manual"
+                                    onClicked: bridge.publish("pickline/target/grip", "0")
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: num("belt", 0) > 0.5 ? "Stop belt" : "Start belt"
+                                    enabled: tag("mode", "auto") === "manual"
+                                    onClicked: bridge.publish("pickline/target/belt",
+                                                               num("belt", 0) > 0.5 ? "0" : "1")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: num("diverter", 0) > 0.5 ? "Retract gate" : "Extend gate"
+                                    enabled: tag("mode", "auto") === "manual"
+                                    onClicked: bridge.publish("pickline/target/diverter",
+                                                               num("diverter", 0) > 0.5 ? "0" : "1")
+                                }
                             }
                         }
                     }

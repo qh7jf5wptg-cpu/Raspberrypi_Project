@@ -1,11 +1,10 @@
-# PickLine — Gantry Feeds a Conveyor with Two Exits
+# PickLine — Pick, Convey, and Fill Cell
 
-A combined digital twin of a pick-and-place gantry and a conveyor belt. The
-gripper picks a part from one of two bins (down or up), drops it at the belt
-infeed, and the belt carries it the full length. Only at the end does the
-direction change: straight off the end, or a 90-degree turn onto a side lane.
-One part is in flight at a time, the belt speed is adjustable, and so is the
-gap between a part leaving and the next pick.
+A combined digital twin of a pick-and-place gantry, a conveyor belt, and two
+filling stations. The gantry picks an empty container from one of two bins and
+drops it on the belt; the belt carries it to the end and routes it to fill
+station A (straight) or station B (left). Each station fills the container and
+then blocks until the full container is taken out manually.
 
 ```
    plant model            soft PLC            clients
@@ -16,24 +15,22 @@ gap between a part leaving and the next pick.
         └──────── pickline/# ────────────────┴──────────────────┘
 ```
 
-Unlike the separate Gripper and Conveyor projects, the two machines live in
-one plant process so they stay in lock-step, and the conveyor takes its parts
-from the gripper's drop instead of spawning them on a timer. The direction
-change happens at the belt's end, not mid-belt.
-
 ## The machine
 
 - **Gantry** — 3-axis (X 0–300, Y 0–220, Z 0–100 mm) with a two-finger
-  gripper. Picks from one of two bins: **DOWN** `(260, 20)` or **UP**
-  `(260, 190)`, chosen per cycle (down / up / alternate). Drops at the belt
-  infeed `(0, 100)`.
+  gripper. Picks from two bins: DOWN `(260, 20)` or UP `(260, 190)`, chosen
+  per cycle (down / up / alternate). Drops at the belt infeed `(0, 100)`.
 - **Conveyor** — belt along X, 0–400 mm at Y = 100, speed adjustable 20–250
-  mm/s (default 90 mm/s).
-- **End diverter** — at x = 400 the part either exits straight or turns onto
-  the side lane (Y 100 → 220).
-- **Sensors** — infeed `(30)`, outfeed `(370)`, and a side-lane sensor `(210)`.
-- **Gap** — seconds between a part leaving and the next pick (default 1.5 s,
-  range 0–30 s).
+  mm/s. At the end the container goes straight to station A or turns onto the
+  side lane to station B.
+- **Two fill stations** — every container has the same adjustable volume
+  (default 100 units). Station A fills faster than station B (both rates
+  adjustable), so the stations are deliberately different.
+- **Routing** — containers alternate straight / left one by one. When a
+  station holds a full container it blocks, and new containers route only to
+  the other station. If neither station is free the cell waits.
+- **Take-out is manual** — a "Take out" button (or MQTT message) removes a
+  full container and frees that station.
 
 ## Topic contract
 
@@ -42,87 +39,74 @@ Sensors (plant → everyone):
 | Topic | Meaning |
 | --- | --- |
 | `pickline/x`, `y`, `z` | tool position, mm |
-| `pickline/grip` | 1 open / 0 closed |
-| `pickline/holding` | 1 while a part is held |
-| `pickline/part_x`, `part_y`, `part_z` | part location, mm |
-| `pickline/belt` | 0 stopped / 1 running |
-| `pickline/belt_pos` | part position on the straight belt, mm (−1 = none) |
-| `pickline/speed` | belt speed, mm/s |
-| `pickline/diverter` | 0 straight / 1 divert |
-| `pickline/sensor_in`, `sensor_out`, `sensor_divert` | 1 while a part is in front |
-| `pickline/placed` | parts fed onto the belt |
-| `pickline/passed` | parts that went straight off the end |
-| `pickline/diverted` | parts that turned onto the side lane |
+| `pickline/grip`, `holding` | jaws and held-part state |
+| `pickline/part_x`, `part_y` | container location, mm |
+| `pickline/belt`, `speed`, `diverter` | conveyor state |
+| `pickline/placed`, `exited` | fed onto belt / entered a station |
+| `pickline/volume` | container capacity, units |
+| `pickline/fill/a/level`, `state`, `count`, `rate`, `valve` | station A |
+| `pickline/fill/b/level`, `state`, `count`, `rate`, `valve` | station B |
+| `pickline/fill/total` | total liquid dispensed, units |
 
 Actuators (PLC or HMI → plant):
 
 | Topic | Meaning |
 | --- | --- |
-| `pickline/target/x`, `y`, `z` | commanded tool position, mm |
-| `pickline/target/grip` | 1 open / 0 close |
-| `pickline/target/belt` | 0 / 1 |
-| `pickline/target/diverter` | 0 / 1 |
-| `pickline/target/speed` | belt speed, mm/s |
-| `pickline/plant/reset` | clear belt and counters |
+| `pickline/target/x`, `y`, `z`, `grip`, `belt`, `diverter`, `speed` | gantry/conveyor |
+| `pickline/target/volume` | container capacity (10–500) |
+| `pickline/target/fill/a/rate`, `fill/b/rate` | fill speed (1–200 u/s) |
+| `pickline/fill/a/take`, `fill/b/take` | take out a full container |
+| `pickline/plant/reset` | clear belt, stations and counters |
 
 PLC status and commands:
 
 | Topic | Meaning |
 | --- | --- |
-| `pickline/state` | IDLE, TO_PICK, GRIP, TO_DROP, WAIT_EXIT, FAULT, ... |
+| `pickline/state` | IDLE, TO_PICK, WAIT_EXIT, WAIT_STATION, FAULT, ... |
 | `pickline/mode` | auto / manual |
 | `pickline/side` | current pick side (down / up) |
-| `pickline/side_mode` | down / up / alternate |
-| `pickline/divert_mode` | pass / divert / alternate |
-| `pickline/decision` | STRAIGHT / DIVERT (current part) |
-| `pickline/gap` | seconds between exit and next pick |
-| `pickline/command/start`, `stop`, `reset`, `mode`, `side`, `divert`, `gap` | control |
+| `pickline/decision` | STRAIGHT / LEFT (current route) |
+| `pickline/gap` | seconds between a container entering and the next pick |
+| `pickline/command/start`, `stop`, `reset`, `mode`, `side`, `gap` | control |
 
 Heartbeats: `pickline/plant/alive` and `pickline/plc/alive` (1/s, retained).
 
 ## Run it
 
-Start the broker once (on the Mac):
-
 ```sh
-brew install mosquitto
-brew services start mosquitto
-```
+brew services start mosquitto          # once
 
-Then open three terminals (all default to `localhost`; set
-`MQTT_BROKER=192.168.50.1` to point at the Mac from the Pi):
-
-```sh
 cd PickLine
-
-# 1. machine simulation
-python3 plant/pickline_plant.py
-
-# 2. soft PLC
-python3 plc/pickline_plc.py
-
-# 3. historian (optional)
-python3 historian/pickline_logger.py
+python3 plant/pickline_plant.py        # machine simulation
+python3 plc/pickline_plc.py            # soft PLC
+python3 historian/pickline_logger.py   # optional
 ```
 
-Start the loop:
+Start the cell:
 
 ```sh
-mosquitto_pub -t pickline/command/mode   -m auto
-mosquitto_pub -t pickline/command/side   -m alternate
-mosquitto_pub -t pickline/command/divert -m alternate
-mosquitto_pub -t pickline/command/gap    -m 2.0
-mosquitto_pub -t pickline/command/start  -m 1
+mosquitto_pub -t pickline/command/mode  -m auto
+mosquitto_pub -t pickline/command/side  -m alternate
+mosquitto_pub -t pickline/command/gap   -m 0.5
+mosquitto_pub -t pickline/command/start -m 1
 ```
 
-Change the belt speed and gap on the fly:
+Take out a full container when a station blocks:
 
 ```sh
-mosquitto_pub -t pickline/target/speed -m 150
-mosquitto_pub -t pickline/command/gap  -m 4.5
+mosquitto_pub -t pickline/fill/a/take -m 1
+mosquitto_pub -t pickline/fill/b/take -m 1
 ```
 
-Watch the tags:
+Adjust the container volume and fill speeds:
+
+```sh
+mosquitto_pub -t pickline/target/volume       -m 120
+mosquitto_pub -t pickline/target/fill/a/rate  -m 45
+mosquitto_pub -t pickline/target/fill/b/rate  -m 30
+```
+
+Watch everything:
 
 ```sh
 mosquitto_sub -h localhost -t 'pickline/#' -v
@@ -137,11 +121,10 @@ cmake --build build
 open build/appPickLineHMI.app
 ```
 
-One canvas shows both machines: the belt, the end gate and side lane, the two
-bins, the drop zone, the sensors, the moving part and the gantry tool. The
-side panel has the state, placed/straight/diverted counters, gap and speed
-sliders, pick-side and end-routing buttons, Start / Stop / Reset, and manual
-jog of the axes, gripper, belt and gate.
+The canvas shows the belt, the two fill tanks with live liquid levels, the
+bins, and the moving container and gantry. The side panel has the state,
+volume and fill-speed sliders, a "Take out" button per station, Start / Stop /
+Reset, and manual jog.
 
 ## Blender twin
 
@@ -151,20 +134,17 @@ blender --background --python create_pickline_blend.py   # build the scene once
 blender --background --python setup_pickline_text.py     # install RUN_PICKLINE.py
 ```
 
-Open `PickLine_Twin.blend`, switch to the Scripting workspace and run
-**RUN_PICKLINE.py**. The gantry head and jaws move over the belt, the part
-travels along it, the end gate swings onto the side lane when diverting, the
-three sensor cubes light green as the part passes, the rollers spin at the
-current speed, and the status line shows the state, side, decision and counts.
+Open `PickLine_Twin.blend` and run **RUN_PICKLINE.py**. The gantry and jaws
+move, the container rides the belt, and the two liquid columns rise as the
+stations fill, turning green when full.
 
 ## Notes
 
 - The plant and PLC are separate processes: the PLC only sees tag values,
   never the simulation's internals — the same boundary a real PLC has against
   a physical cell.
-- The gap is applied after the part exits, so there is never more than one
-  part on the line. A 30 s timeout turns a lost part into a `FAULT` instead of
-  hanging.
+- Stations are "free" only when EMPTY; FILLING and FULL both block them. The
+  cell therefore waits in `WAIT_STATION` until you take a full container out.
 - `pickline.db` is a local recording and is git-ignored. Use
   `python3 historian/pickline_logger.py --stats` for a quick summary.
 - To run the control on real hardware later, replace `plc/pickline_plc.py`

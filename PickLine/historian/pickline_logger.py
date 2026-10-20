@@ -14,8 +14,11 @@ SAMPLE_S = 0.5
 
 tags = {"x": 0.0, "y": 0.0, "z": 60.0, "holding": 0, "belt": 0.0,
         "belt_pos": -1.0, "speed": 90.0, "diverter": 0.0, "placed": 0,
-        "passed": 0, "diverted": 0, "exited": 0, "state": "IDLE",
-        "mode": "auto", "side": "down", "decision": "STRAIGHT", "gap": 1.5}
+        "exited": 0, "state": "IDLE", "mode": "auto", "side": "down",
+        "decision": "STRAIGHT", "gap": 0.5, "volume": 100.0,
+        "fill/a/level": 0.0, "fill/a/state": "EMPTY", "fill/a/count": 0,
+        "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
+        "fill/total": 0.0}
 con = None
 
 
@@ -23,11 +26,12 @@ def on_message(_client, _userdata, msg):
     key = msg.topic.split("/", 1)[-1] if msg.topic.startswith("pickline/") else msg.topic
     payload = msg.payload.decode("utf-8", "replace").strip()
     try:
-        if key in ("x", "y", "z", "belt", "belt_pos", "speed", "diverter", "gap"):
+        if key in ("x", "y", "z", "belt", "belt_pos", "speed", "diverter",
+                   "gap", "volume", "fill/a/level", "fill/b/level", "fill/total"):
             tags[key] = float(payload)
-        elif key in ("holding", "placed", "passed", "diverted", "exited"):
+        elif key in ("holding", "placed", "exited", "fill/a/count", "fill/b/count"):
             tags[key] = int(float(payload))
-        elif key in ("state", "mode", "side", "decision"):
+        elif key in ("state", "mode", "side", "decision", "fill/a/state", "fill/b/state"):
             tags[key] = payload
     except ValueError:
         pass
@@ -36,12 +40,16 @@ def on_message(_client, _userdata, msg):
 def store():
     con.execute(
         "INSERT INTO log (ts, x, y, z, holding, belt, belt_pos, speed, diverter,"
-        " placed, passed, diverted, exited, state, mode, side, decision, gap)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " placed, exited, state, mode, side, decision, gap, volume,"
+        " a_level, a_state, a_count, b_level, b_state, b_count, total)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (time.time(), tags["x"], tags["y"], tags["z"], tags["holding"],
          tags["belt"], tags["belt_pos"], tags["speed"], tags["diverter"],
-         tags["placed"], tags["passed"], tags["diverted"], tags["exited"],
-         tags["state"], tags["mode"], tags["side"], tags["decision"], tags["gap"]),
+         tags["placed"], tags["exited"], tags["state"], tags["mode"], tags["side"],
+         tags["decision"], tags["gap"], tags["volume"],
+         tags["fill/a/level"], tags["fill/a/state"], tags["fill/a/count"],
+         tags["fill/b/level"], tags["fill/b/state"], tags["fill/b/count"],
+         tags["fill/total"]),
     )
     con.commit()
 
@@ -52,21 +60,23 @@ def print_stats(db_path):
         return
     c = sqlite3.connect(db_path)
     try:
-        row = c.execute("SELECT COUNT(*), MIN(ts), MAX(ts), MAX(exited) FROM log").fetchone()
+        row = c.execute("SELECT COUNT(*), MIN(ts), MAX(ts), MAX(exited), MAX(a_count), MAX(b_count)"
+                        " FROM log").fetchone()
     except sqlite3.OperationalError:
         print("No log table in", db_path)
         return
     finally:
         c.close()
-    count, first, last, exited = row
+    count, first, last, exited, a_count, b_count = row
     if not count:
         print("The log is empty.")
         return
-    print("Log file :", db_path)
-    print("Samples  :", count)
-    print("From     :", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(first)))
-    print("To       :", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last)))
-    print("Exited   :", exited)
+    print("Log file  :", db_path)
+    print("Samples   :", count)
+    print("From      :", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(first)))
+    print("To        :", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last)))
+    print("Exited    :", exited)
+    print("Fills A/B :", a_count, "/", b_count)
 
 
 def main():
@@ -75,8 +85,10 @@ def main():
     con.execute(
         "CREATE TABLE IF NOT EXISTS log (ts REAL, x REAL, y REAL, z REAL,"
         " holding INTEGER, belt REAL, belt_pos REAL, speed REAL, diverter REAL,"
-        " placed INTEGER, passed INTEGER, diverted INTEGER, exited INTEGER,"
-        " state TEXT, mode TEXT, side TEXT, decision TEXT, gap REAL)"
+        " placed INTEGER, exited INTEGER, state TEXT, mode TEXT, side TEXT,"
+        " decision TEXT, gap REAL, volume REAL,"
+        " a_level REAL, a_state TEXT, a_count INTEGER,"
+        " b_level REAL, b_state TEXT, b_count INTEGER, total REAL)"
     )
     con.commit()
     print("Logging to", DB)
