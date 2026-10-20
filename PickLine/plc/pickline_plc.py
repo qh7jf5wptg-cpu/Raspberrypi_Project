@@ -117,6 +117,8 @@ def at_target():
     name, kind, arg = SEQUENCE[step_idx]
     if kind != "move":
         return True
+    if tags["busy"] != 0:
+        return False
     tx, ty, tz = move_target(arg)
     return (abs(tags["x"] - tx) <= TOL
             and abs(tags["y"] - ty) <= TOL
@@ -148,8 +150,13 @@ def decide_route():
     elif route_mode == "left":
         apply_diverter(True)
     elif route_mode == "alternate":
-        alternate_flag = not alternate_flag
-        apply_diverter(alternate_flag)
+        if a_free and b_free:
+            alternate_flag = not alternate_flag
+            apply_diverter(not alternate_flag)  # A first, then B, and so on
+        elif a_free:
+            apply_diverter(False)
+        elif b_free:
+            apply_diverter(True)
     elif a_free and b_free:
         # Auto: prefer the faster station (fewer pickups); alternate on a tie.
         if pickups["a"] < pickups["b"]:
@@ -325,7 +332,7 @@ def tick(now):
             client.publish("pickline/target/belt", "0", retain=False)
             return
 
-        name, kind, _arg = SEQUENCE[step_idx]
+        name, kind, arg = SEQUENCE[step_idx]
 
         if step_done(now):
             step_idx += 1
@@ -335,9 +342,15 @@ def tick(now):
             enter_step(step_idx, now)
             return
 
-        # Re-send the move target periodically in case the plant missed it.
-        if kind == "move" and now - last_resend >= 1.0:
-            send_move_target()
+        # Re-send the current step command periodically in case the plant missed it.
+        if kind in ("move", "grip", "wait_exit") and now - last_resend >= 1.0:
+            if kind == "move":
+                send_move_target()
+            elif kind == "grip":
+                client.publish("pickline/target/grip", str(arg), retain=False)
+            elif kind == "wait_exit":
+                client.publish("pickline/target/diverter",
+                               "1" if decision == "LEFT" else "0", retain=False)
             last_resend = now
 
         timeout = WAIT_TIMEOUT if kind == "wait_exit" else STEP_TIMEOUT
