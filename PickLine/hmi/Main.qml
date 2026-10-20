@@ -527,10 +527,12 @@ ApplicationWindow {
                     // Pause / emergency / clear belt.
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.preferredHeight: 42
                         spacing: 6
                         Button {
                             id: pauseBtn
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             text: tag("paused", "0") === "1" ? "Resume" : "Pause"
                             enabled: tag("paused", "0") === "1" || canPause()
                             onClicked: bridge.publish(
@@ -556,11 +558,13 @@ ApplicationWindow {
                         }
                         Button {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             text: "Emergency"
                             onClicked: bridge.publish("pickline/command/estop", "1")
                         }
                         Button {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             text: "Clear belt"
                             onClicked: bridge.publish("pickline/command/clear_belt", "1")
                         }
