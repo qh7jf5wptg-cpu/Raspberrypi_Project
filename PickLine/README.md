@@ -161,6 +161,18 @@ Clear a jam with `pickline/fault/clear -m 1` or a Reset. Clear an overfilled
 station with its Take out button. The HMI has "Jam belt" / "Clear jam" buttons,
 and shows each station's alarm.
 
+## OPC UA
+
+The cell also exposes a standard **OPC UA** interface via
+`opcua/opcua_server.py`, so industrial clients (TwinCAT, CODESYS, UaExpert,
+SCADA) can monitor and control the same tags. See
+[opcua/README.md](opcua/README.md) for the address space and setup.
+
+```sh
+pip install asyncua
+python3 opcua/opcua_server.py      # opc.tcp://0.0.0.0:4840
+```
+
 ## Notes
 
 - The plant and PLC are separate processes: the PLC only sees tag values,
