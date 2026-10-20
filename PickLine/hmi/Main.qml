@@ -159,14 +159,14 @@ ApplicationWindow {
                         var h = height
                         ctx.clearRect(0, 0, w, h)
 
-                        var WX = 480.0
-                        var WY = 260.0
-                        var s = Math.min((w - 56) / WX, (h - 48) / WY)
+                        var WX = 520.0
+                        var WY = 297.0
+                        var s = Math.min((w - 32) / WX, (h - 32) / WY)
                         var ox = (w - WX * s) / 2
                         var oy = (h - WY * s) / 2
 
-                        function X(v) { return ox + v * s }
-                        function Y(v) { return oy + (WY - v) * s }
+                        function X(v) { return ox + (v + 25) * s }
+                        function Y(v) { return oy + (292 - v) * s }
 
                         ctx.strokeStyle = "#c9d2e0"
                         ctx.lineWidth = 2
