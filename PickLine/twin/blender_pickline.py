@@ -109,8 +109,8 @@ def apply_twin():
     _set_color(_obj("SensorOut"), (0.2, 0.9, 0.35, 1.0) if state["sensor_out"] else (0.18, 0.22, 0.26, 1.0))
     _set_color(_obj("SensorDivert"), (0.2, 0.9, 0.35, 1.0) if state["sensor_divert"] else (0.18, 0.22, 0.26, 1.0))
 
-    set_liquid("a", "LiquidA", 4.0, 1.0)
-    set_liquid("b", "LiquidB", 4.0, 2.2)
+    set_liquid("a", "LiquidA", 4.6, 1.0)
+    set_liquid("b", "LiquidB", 4.0, 2.4)
 
     text = _obj("StatusText")
     if text:

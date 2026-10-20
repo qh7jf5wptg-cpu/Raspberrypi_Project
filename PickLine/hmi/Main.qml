@@ -145,24 +145,26 @@ ApplicationWindow {
                         var h = height
                         ctx.clearRect(0, 0, w, h)
 
-                        var s = Math.min((w - 56) / 440.0, (h - 48) / 220.0)
-                        var ox = (w - 400 * s) / 2
-                        var oy = (h - 220 * s) / 2
+                        var WX = 480.0
+                        var WY = 260.0
+                        var s = Math.min((w - 56) / WX, (h - 48) / WY)
+                        var ox = (w - WX * s) / 2
+                        var oy = (h - WY * s) / 2
 
                         function X(v) { return ox + v * s }
-                        function Y(v) { return oy + (220 - v) * s }
+                        function Y(v) { return oy + (WY - v) * s }
 
                         ctx.strokeStyle = "#c9d2e0"
                         ctx.lineWidth = 2
-                        ctx.strokeRect(ox, oy, 400 * s, 220 * s)
+                        ctx.strokeRect(ox, oy, WX * s, WY * s)
 
-                        // Side lane (left route to station B).
+                        // Left lane (route to station B), turning at the belt end.
                         var gateX = X(400)
                         ctx.fillStyle = "#f4ead8"
-                        ctx.fillRect(gateX - 7 * s, Y(220), 14 * s, 120 * s)
+                        ctx.fillRect(gateX - 7 * s, Y(240), 14 * s, 140 * s)
                         ctx.strokeStyle = "#c9b58d"
                         ctx.lineWidth = 1.5
-                        ctx.strokeRect(gateX - 7 * s, Y(220), 14 * s, 120 * s)
+                        ctx.strokeRect(gateX - 7 * s, Y(240), 14 * s, 140 * s)
 
                         // Conveyor belt.
                         var beltTop = Y(100) - 10 * s
@@ -176,7 +178,14 @@ ApplicationWindow {
                         ctx.textAlign = "center"
                         ctx.fillText("CONVEYOR", X(200), Y(100) + 24 * s)
 
-                        // Fill stations at the two ends.
+                        // Straight approach lane (belt end -> station A).
+                        ctx.fillStyle = "#eef3f8"
+                        ctx.fillRect(X(400) - 6, beltTop, 66 * s, 20 * s)
+                        ctx.strokeStyle = "#b8c4d2"
+                        ctx.lineWidth = 1.5
+                        ctx.strokeRect(X(400) - 6, beltTop, 66 * s, 20 * s)
+
+                        // Fill stations beyond the two lanes.
                         function drawStation(cx, cy, key, label) {
                             var vol = num("volume", 100)
                             var level = fillLevel(key)
@@ -206,8 +215,8 @@ ApplicationWindow {
                             ctx.fillStyle = "#637083"
                             ctx.fillText(st, cx, y0 + tankH + 25)
                         }
-                        drawStation(X(400), Y(100), "a", "FILL A")
-                        drawStation(X(400), Y(220), "b", "FILL B")
+                        drawStation(X(460), Y(100), "a", "FILL A")
+                        drawStation(X(400), Y(240), "b", "FILL B")
 
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"
@@ -289,8 +298,11 @@ ApplicationWindow {
                                 ctx.fillText("HOLDING", partCx, partCy - 12 * s)
                             else if (num("part_y", 0) > 100)
                                 ctx.fillText("TO B", partCx, partCy - 12 * s)
-                            else
+                            else if (num("part_x", 0) >= 400)
                                 ctx.fillText("TO A", partCx, partCy - 12 * s)
+                            else
+                                ctx.fillText(num("diverter", 0) > 0.5 ? "TO B" : "TO A",
+                                             partCx, partCy - 12 * s)
                         }
 
                         // Gantry tool crosshair.
@@ -713,18 +725,23 @@ ApplicationWindow {
                                 spacing: 6
                                 Button {
                                     Layout.fillWidth: true
-                                    text: num("belt", 0) > 0.5 ? "Stop belt" : "Start belt"
+                                    text: "Go straight"
                                     enabled: tag("mode", "auto") === "manual"
-                                    onClicked: bridge.publish("pickline/target/belt",
-                                                               num("belt", 0) > 0.5 ? "0" : "1")
+                                    onClicked: bridge.publish("pickline/target/diverter", "0")
                                 }
                                 Button {
                                     Layout.fillWidth: true
-                                    text: num("diverter", 0) > 0.5 ? "Retract gate" : "Extend gate"
+                                    text: "Go left"
                                     enabled: tag("mode", "auto") === "manual"
-                                    onClicked: bridge.publish("pickline/target/diverter",
-                                                               num("diverter", 0) > 0.5 ? "0" : "1")
+                                    onClicked: bridge.publish("pickline/target/diverter", "1")
                                 }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: num("belt", 0) > 0.5 ? "Stop belt" : "Start belt"
+                                enabled: tag("mode", "auto") === "manual"
+                                onClicked: bridge.publish("pickline/target/belt",
+                                                           num("belt", 0) > 0.5 ? "0" : "1")
                             }
                         }
                     }

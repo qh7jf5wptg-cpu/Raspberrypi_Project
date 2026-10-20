@@ -21,8 +21,8 @@ then blocks until the full container is taken out manually.
   gripper. Picks from two bins: DOWN `(260, 20)` or UP `(260, 190)`, chosen
   per cycle (down / up / alternate). Drops at the belt infeed `(0, 100)`.
 - **Conveyor** — belt along X, 0–400 mm at Y = 100, speed adjustable 20–250
-  mm/s. At the end the container goes straight to station A or turns onto the
-  side lane to station B.
+  mm/s. Past the belt end there is a short straight approach to station A
+  `(460, 100)` and a left approach to station B `(400, 240)`.
 - **Two fill stations** — every container has the same adjustable volume
   (default 100 units). Station A fills faster than station B (both rates
   adjustable), so the stations are deliberately different.

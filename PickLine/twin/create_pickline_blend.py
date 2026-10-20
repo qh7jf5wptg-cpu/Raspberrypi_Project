@@ -76,8 +76,11 @@ box("Belt", (2.0, 1.0, 0.04), (2.0, 0.09, 0.02), belt_mat)
 add_cylinder("RollerL", (0.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
 add_cylinder("RollerR", (4.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
 
-# Side lane: turns +Y at the END of the belt (x = 4).
-box("Lane", (4.0, 1.6, 0.04), (0.09, 0.6, 0.02), lane_mat)
+# Left lane: turns +Y at the END of the belt (x = 4), reaching station B.
+box("Lane", (4.0, 1.7, 0.04), (0.09, 0.7, 0.02), lane_mat)
+
+# Straight approach lane: continues +X past the belt end to station A.
+box("LaneStraight", (4.3, 1.0, 0.04), (0.3, 0.09, 0.02), lane_mat)
 
 # End gate (pivots when diverting).
 box("Gate", (4.0, 1.12, 0.08), (0.035, 0.16, 0.03), gate_mat)
@@ -109,13 +112,13 @@ box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_mat)
 # Sensors.
 box("SensorIn", (0.3, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorOut", (3.7, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
-box("SensorDivert", (4.0, 2.1, 0.08), (0.025, 0.025, 0.025), sensor_mat)
+box("SensorDivert", (4.0, 2.3, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 
 # Two fill stations: A at the straight end, B at the left end.
-box("TankA", (4.0, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
-box("LiquidA", (4.0, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
-box("TankB", (4.0, 2.2, 0.30), (0.17, 0.17, 0.30), tank_mat)
-box("LiquidB", (4.0, 2.2, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+box("TankA", (4.6, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
+box("LiquidA", (4.6, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+box("TankB", (4.0, 2.4, 0.30), (0.17, 0.17, 0.30), tank_mat)
+box("LiquidB", (4.0, 2.4, 0.03), (0.13, 0.13, 0.03), liquid_mat)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")

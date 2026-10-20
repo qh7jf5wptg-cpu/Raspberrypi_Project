@@ -49,10 +49,11 @@ DROP = (0.0, 100.0, 0.0)        # belt infeed (belt runs along y = 100)
 PICK_TOL = 8.0
 
 BELT_LEN = 400.0                # belt runs x = 0 .. 400 at y = 100
+STRAIGHT_END = 460.0            # station A sits beyond the straight belt end
+LEFT_END_Y = 240.0              # station B sits beyond the left lane end
 SENSOR_IN_X = 30.0
 SENSOR_OUT_X = 370.0
-DIVERT_Y = 120.0                # side lane length in +Y (100 -> 220)
-SENSOR_DIVERT_Y = 210.0
+SENSOR_DIVERT_Y = 230.0
 SENSOR_TOL = 6.0
 
 lock = threading.Lock()
@@ -70,7 +71,7 @@ belt_speed = BELT_SPEED
 diverter = 0.0
 diverter_target = 0.0
 
-part_lane = "none"              # none | belt | divert | wait_a | wait_b
+part_lane = "none"              # none | belt | straight | left | wait_a | wait_b
 part_x = -1.0
 part_y = -1.0
 exited = 0
@@ -212,27 +213,33 @@ def step(dt):
 
         speed = belt_speed * belt
 
-        # Container on the belt / side lane.
+        # Container: belt -> approach lane -> fill station.
         if part_lane == "belt":
             part_x += speed * dt
             if part_x >= BELT_LEN:
                 if diverter > 0.5:
-                    part_lane = "divert"
+                    part_lane = "left"
                     part_x = BELT_LEN
-                elif fill["a"]["state"] == "EMPTY":
+                    part_y = DROP[1]
+                else:
+                    part_lane = "straight"
+                    part_y = DROP[1]
+        elif part_lane == "straight":
+            part_x += speed * dt
+            if part_x >= STRAIGHT_END:
+                if fill["a"]["state"] == "EMPTY":
                     enter_station("a")
                 else:
                     part_lane = "wait_a"
-                    part_x = BELT_LEN
-                    part_y = DROP[1]
-        elif part_lane == "divert":
+                    part_x = STRAIGHT_END
+        elif part_lane == "left":
             part_y += speed * dt
-            if part_y >= DROP[1] + DIVERT_Y:
+            if part_y >= LEFT_END_Y:
                 if fill["b"]["state"] == "EMPTY":
                     enter_station("b")
                 else:
                     part_lane = "wait_b"
-                    part_y = DROP[1] + DIVERT_Y
+                    part_y = LEFT_END_Y
         elif part_lane == "wait_a":
             if fill["a"]["state"] == "EMPTY":
                 enter_station("a")
@@ -257,7 +264,7 @@ def step(dt):
 
         sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
         sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
-        sensor_divert = 1 if (part_lane == "divert" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
+        sensor_divert = 1 if (part_lane == "left" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
 
 
 def snapshot():
@@ -266,7 +273,7 @@ def snapshot():
 
         if part_held:
             px, py, pz = pos
-        elif part_lane in ("belt", "divert", "wait_a", "wait_b"):
+        elif part_lane in ("belt", "straight", "left", "wait_a", "wait_b"):
             px, py, pz = part_x, part_y, 0.0
         else:
             px, py, pz = -1.0, -1.0, -1.0
