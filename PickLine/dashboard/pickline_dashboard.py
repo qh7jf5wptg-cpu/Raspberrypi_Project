@@ -101,6 +101,11 @@ HTML = """<!doctype html>
   .bar > div { height:100%; background:var(--blue); transition:width .3s; }
   .bar.full > div { background:var(--red); }
   .bar.fault > div { background:var(--red); }
+  .take-btn { margin-top:10px; width:100%; padding:8px; border:none; border-radius:8px;
+              background:#2a3448; color:var(--muted); font-weight:700; cursor:pointer; }
+  .take-btn:disabled { opacity:0.45; cursor:default; }
+  .take-btn.ready { background:var(--red); color:#fff; animation:blink .6s step-start infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
   .chart-wrap { background:var(--card); border-radius:12px; padding:14px; }
   .chart-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
   @media (max-width:640px){ .chart-row { grid-template-columns:1fr; } }
@@ -138,11 +143,13 @@ HTML = """<!doctype html>
       <h2>Station A <span id="a-state" style="color:var(--muted)"></span></h2>
       <div class="bar" id="a-bar"><div id="a-fill" style="width:0%"></div></div>
       <p id="a-info" style="color:var(--muted);font-size:12px"></p>
+      <button id="a-take" class="take-btn" disabled>Take out</button>
     </div>
     <div class="station">
       <h2>Station B <span id="b-state" style="color:var(--muted)"></span></h2>
       <div class="bar" id="b-bar"><div id="b-fill" style="width:0%"></div></div>
       <p id="b-info" style="color:var(--muted);font-size:12px"></p>
+      <button id="b-take" class="take-btn" disabled>Take out</button>
     </div>
   </div>
   <div class="chart-row">
@@ -188,6 +195,8 @@ const gapSlider = el('gap-slider');
 const speedSlider = el('speed-slider');
 gapSlider.addEventListener('change', () => send('pickline/command/gap', gapSlider.value));
 speedSlider.addEventListener('change', () => send('pickline/target/speed', speedSlider.value));
+el('a-take').addEventListener('click', () => send('pickline/fill/a/take', '1'));
+el('b-take').addEventListener('click', () => send('pickline/fill/b/take', '1'));
 
 async function poll(){
   try {
@@ -220,6 +229,8 @@ async function poll(){
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
       el(p+'-state').textContent = st;
       el(p+'-info').textContent = filled+' / '+pickups+' containers · '+(t['fill/'+k+'/count']||0)+' done'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
+      el(p+'-take').disabled = (st !== 'FULL');
+      el(p+'-take').classList.toggle('ready', st === 'FULL');
     });
 
     LA.length = DA.length = LB.length = DB.length = LC.length = DCA.length = DCB.length = 0;
