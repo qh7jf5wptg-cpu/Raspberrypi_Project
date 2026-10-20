@@ -116,10 +116,10 @@ HTML = """<!doctype html>
 </header>
 <main>
   <div class="cards">
+    <div class="card"><div class="label">Station A done</div><div class="value" id="a-done">0</div></div>
+    <div class="card"><div class="label">Station B done</div><div class="value" id="b-done">0</div></div>
+    <div class="card"><div class="label">Total done</div><div class="value" id="total-done">0</div></div>
     <div class="card"><div class="label">Total dispensed</div><div class="value" id="total">0 u</div></div>
-    <div class="card"><div class="label">Throughput</div><div class="value" id="tput">0 /min</div></div>
-    <div class="card"><div class="label">Placed</div><div class="value" id="placed">0</div></div>
-    <div class="card"><div class="label">Entered stations</div><div class="value" id="exited">0</div></div>
   </div>
   <div class="cards">
     <div class="card">
@@ -197,10 +197,12 @@ async function poll(){
     barState(t.state);
     el('mode').textContent = 'mode ' + (t.mode || '—') + ' · ' + (t.decision || '—');
     el('alarm').textContent = t.alarm || (t.jam === '1' ? 'BELT JAM' : '');
+    const aCount = parseInt(t['fill/a/count']||0)||0;
+    const bCount = parseInt(t['fill/b/count']||0)||0;
+    el('a-done').textContent = aCount;
+    el('b-done').textContent = bCount;
+    el('total-done').textContent = aCount + bCount;
     el('total').textContent = (parseFloat(t['fill/total']||0)||0).toFixed(0) + ' u';
-    el('tput').textContent = (d.fills_per_min||0) + ' /min';
-    el('placed').textContent = t.placed || 0;
-    el('exited').textContent = t.exited || 0;
 
     const gap = parseFloat(t.gap||0.5)||0;
     const speed = parseFloat(t.speed||90)||90;
@@ -217,7 +219,7 @@ async function poll(){
       el(p+'-fill').style.width = pct + '%';
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
       el(p+'-state').textContent = st;
-      el(p+'-info').textContent = filled+' / '+pickups+' pickups · '+(t['fill/'+k+'/count']||0)+' fills'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
+      el(p+'-info').textContent = filled+' / '+pickups+' containers · '+(t['fill/'+k+'/count']||0)+' done'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
     });
 
     LA.length = DA.length = LB.length = DB.length = LC.length = DCA.length = DCB.length = 0;
