@@ -345,11 +345,13 @@ def apply_twin():
                and not state.get("paused", 0) and not state.get("estop", 0))
     blink = int(time.time() * 2) % 2 == 0
     red_on = state.get("estop", 0) or state.get("state", "") == "FAULT"
-    yellow_on = state.get("paused", 0)
+    amber_on = state.get("paused", 0)
     green_on = running and blink
-    _set_light("LightRed", red_on, (1.0, 0.05, 0.05))
-    _set_light("LightYellow", yellow_on, (1.0, 0.8, 0.05))
-    _set_light("LightGreen", green_on, (0.05, 1.0, 0.1))
+    blue_on = state.get("mode", "auto") == "manual"
+    _set_light("TowerRed", red_on, (1.0, 0.05, 0.05))
+    _set_light("TowerAmber", amber_on, (1.0, 0.55, 0.0))
+    _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
+    _set_light("TowerBlue", blue_on, (0.1, 0.35, 1.0))
 
     sync_settings()
     return 0.05
