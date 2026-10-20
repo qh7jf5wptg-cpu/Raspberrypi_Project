@@ -69,6 +69,7 @@ gap = DEFAULT_GAP
 side = "down"
 side_mode = "alternate"
 side_alt = False
+route_mode = "auto"
 alternate_flag = False
 decision = "STRAIGHT"
 alarm = ""
@@ -142,8 +143,15 @@ def decide_route():
     global alternate_flag
     a_free = station["a"] not in ("FULL", "FAULT")
     b_free = station["b"] not in ("FULL", "FAULT")
-    if a_free and b_free:
-        # Prefer the faster station (fewer pickups); alternate on a tie.
+    if route_mode == "straight":
+        apply_diverter(False)
+    elif route_mode == "left":
+        apply_diverter(True)
+    elif route_mode == "alternate":
+        alternate_flag = not alternate_flag
+        apply_diverter(alternate_flag)
+    elif a_free and b_free:
+        # Auto: prefer the faster station (fewer pickups); alternate on a tie.
         if pickups["a"] < pickups["b"]:
             apply_diverter(False)
         elif pickups["b"] < pickups["a"]:
@@ -156,6 +164,14 @@ def decide_route():
     elif b_free:
         apply_diverter(True)
     # else: neither free — handled by WAIT_STATION before the next pick.
+
+
+def station_available():
+    if route_mode == "straight":
+        return station["a"] not in ("FULL", "FAULT")
+    if route_mode == "left":
+        return station["b"] not in ("FULL", "FAULT")
+    return station["a"] not in ("FULL", "FAULT") or station["b"] not in ("FULL", "FAULT")
 
 
 def enter_step(index, now):
@@ -214,7 +230,7 @@ def on_connect(cli, *_args):
 
 
 def on_message(_cli, _userdata, msg):
-    global mode, started, state, gap, side_mode, alarm, step_idx, jam_flag
+    global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -274,6 +290,8 @@ def on_message(_cli, _userdata, msg):
                 pass
         elif msg.topic == "pickline/command/side":
             side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
+        elif msg.topic == "pickline/command/route":
+            route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
 
 
 def step_done(now):
@@ -287,7 +305,7 @@ def step_done(now):
             part_exited_at = now
         return part_exited and (now - part_exited_at >= gap)
     if kind == "wait_station":
-        return station["a"] not in ("FULL", "FAULT") or station["b"] not in ("FULL", "FAULT")
+        return station_available()
     return at_target()
 
 
@@ -333,6 +351,7 @@ def publish_status():
         "pickline/mode": mode,
         "pickline/side": side,
         "pickline/side_mode": side_mode,
+        "pickline/route_mode": route_mode,
         "pickline/decision": decision,
         "pickline/gap": "%.2f" % gap,
         "pickline/alarm": alarm,

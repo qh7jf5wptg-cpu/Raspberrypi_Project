@@ -701,6 +701,37 @@ ApplicationWindow {
                                     onClicked: bridge.publish("pickline/command/side", "alternate")
                                 }
                             }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Text {
+                                    text: "ROUTE"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    color: "#7f8c9b"
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Auto"
+                                    onClicked: bridge.publish("pickline/command/route", "auto")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Straight"
+                                    onClicked: bridge.publish("pickline/command/route", "straight")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Left"
+                                    onClicked: bridge.publish("pickline/command/route", "left")
+                                }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Alt"
+                                    onClicked: bridge.publish("pickline/command/route", "alternate")
+                                }
+                            }
                         }
                     }
 
