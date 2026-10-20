@@ -247,6 +247,25 @@ ApplicationWindow {
                         ctx.font = "11px sans-serif"
                         ctx.fillText("DROP", X(0), Y(100) - 18 * s)
 
+                        // Industrial stack light above the drop point.
+                        var lx = X(0)
+                        var ly = Y(100) - 84
+                        var lr = 11
+                        var lsp = 28
+                        var topY = ly - lsp - lr - 7
+                        var bottomY = ly + lsp + lr + 7
+                        ctx.fillStyle = "#1a2233"
+                        ctx.fillRect(lx - 24, topY, 48, bottomY - topY)
+                        var redOn = num("estop", 0) > 0 || tag("state", "") === "FAULT"
+                        var yellowOn = num("paused", 0) > 0
+                        var greenOn = machineRunning() && blinkOn
+                        ctx.fillStyle = redOn ? "#e74c3c" : "#2a3448"
+                        ctx.beginPath(); ctx.arc(lx, ly - lsp, lr, 0, Math.PI * 2); ctx.fill()
+                        ctx.fillStyle = yellowOn ? "#f1c40f" : "#2a3448"
+                        ctx.beginPath(); ctx.arc(lx, ly, lr, 0, Math.PI * 2); ctx.fill()
+                        ctx.fillStyle = greenOn ? "#2ecc71" : "#2a3448"
+                        ctx.beginPath(); ctx.arc(lx, ly + lsp, lr, 0, Math.PI * 2); ctx.fill()
+
                         // Two bins.
                         function drawBin(binY, label) {
                             var st = binProximity(binY)
@@ -348,25 +367,6 @@ ApplicationWindow {
                     }
                 }
 
-                // Industrial stack light overlay (red top, yellow middle, green bottom).
-                Column {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.margins: 12
-                    spacing: 4
-                    Rectangle {
-                        width: 14; height: 14; radius: 7
-                        color: (num("estop", 0) > 0 || tag("state", "") === "FAULT") ? "#e74c3c" : "#2a3448"
-                    }
-                    Rectangle {
-                        width: 14; height: 14; radius: 7
-                        color: num("paused", 0) > 0 ? "#f1c40f" : "#2a3448"
-                    }
-                    Rectangle {
-                        width: 14; height: 14; radius: 7
-                        color: (machineRunning() && blinkOn) ? "#2ecc71" : "#2a3448"
-                    }
-                }
             }
 
             ScrollView {
