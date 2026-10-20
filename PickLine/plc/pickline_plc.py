@@ -80,6 +80,7 @@ part_exited = False
 part_exited_at = 0.0
 
 last = {}
+last_resend = 0.0
 
 
 def current_pick():
@@ -113,14 +114,22 @@ def move_target(kind):
 
 def at_target():
     name, kind, arg = SEQUENCE[step_idx]
-    if tags["busy"] != 0:
-        return False
     if kind != "move":
         return True
     tx, ty, tz = move_target(arg)
     return (abs(tags["x"] - tx) <= TOL
             and abs(tags["y"] - ty) <= TOL
             and abs(tags["z"] - tz) <= TOL)
+
+
+def send_move_target():
+    _name, kind, arg = SEQUENCE[step_idx]
+    if kind != "move":
+        return
+    tx, ty, tz = move_target(arg)
+    client.publish("pickline/target/x", "%.1f" % tx, retain=False)
+    client.publish("pickline/target/y", "%.1f" % ty, retain=False)
+    client.publish("pickline/target/z", "%.1f" % tz, retain=False)
 
 
 def apply_diverter(value):
@@ -151,16 +160,14 @@ def decide_route():
 
 def enter_step(index, now):
     global step_idx, step_started, state
-    global exit_base, part_exited, part_exited_at
+    global exit_base, part_exited, part_exited_at, last_resend
     step_idx = index
     step_started = now
+    last_resend = now
     name, kind, arg = SEQUENCE[index]
     state = name
     if kind == "move":
-        tx, ty, tz = move_target(arg)
-        client.publish("pickline/target/x", "%.1f" % tx, retain=False)
-        client.publish("pickline/target/y", "%.1f" % ty, retain=False)
-        client.publish("pickline/target/z", "%.1f" % tz, retain=False)
+        send_move_target()
     elif kind == "grip":
         client.publish("pickline/target/grip", str(arg), retain=False)
     elif kind == "wait_exit":
@@ -285,7 +292,7 @@ def step_done(now):
 
 
 def tick(now):
-    global step_idx, started, alarm, state
+    global step_idx, started, alarm, state, last_resend
     with lock:
         if mode != "auto" or not started:
             return
@@ -306,6 +313,11 @@ def tick(now):
                 choose_side()
             enter_step(step_idx, now)
             return
+
+        # Re-send the move target periodically in case the plant missed it.
+        if kind == "move" and now - last_resend >= 1.0:
+            send_move_target()
+            last_resend = now
 
         timeout = WAIT_TIMEOUT if kind == "wait_exit" else STEP_TIMEOUT
         if kind != "wait_station" and now - step_started > timeout:
