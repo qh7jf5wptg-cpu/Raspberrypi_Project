@@ -77,7 +77,7 @@ def set_liquid(key, liquid_name, sx, sy):
     if st == "FAULT":
         color = (0.90, 0.20, 0.15, 1.0)
     elif st == "FULL":
-        color = (0.15, 0.80, 0.35, 1.0)
+        color = (0.90, 0.20, 0.15, 1.0)
     else:
         color = (0.10, 0.55, 0.90, 1.0)
     _set_color(liquid, color)

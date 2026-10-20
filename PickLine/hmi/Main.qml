@@ -58,7 +58,7 @@ ApplicationWindow {
     }
     function fillColor(key) {
         var s = fillState(key)
-        return s === "FULL" ? "#27ae60"
+        return s === "FULL" ? "#e74c3c"
                : s === "FILLING" ? "#4aa3df"
                : s === "FAULT" ? "#e74c3c" : "#9aa7b8"
     }
@@ -67,6 +67,7 @@ ApplicationWindow {
     property real plcSeen: 0
     property bool plantOnline: false
     property bool plcOnline: false
+    property bool blinkOn: false
 
     Connections {
         target: bridge
@@ -91,6 +92,16 @@ ApplicationWindow {
             var now = Date.now()
             plantOnline = (now - plantSeen) < 5000
             plcOnline = (now - plcSeen) < 5000
+        }
+    }
+
+    Timer {
+        interval: 450
+        running: true
+        repeat: true
+        onTriggered: {
+            blinkOn = !blinkOn
+            view.requestPaint()
         }
     }
 
@@ -205,7 +216,10 @@ ApplicationWindow {
                             ctx.fillStyle = "#4aa3df"
                             ctx.fillRect(x0 + 2, y0 + tankH - 2 - lh, tankW - 4, lh)
 
-                            ctx.strokeStyle = fillColor(key)
+                            var borderColor = fillColor(key)
+                            if (st === "FULL" && !blinkOn)
+                                borderColor = "#f5b7b1"
+                            ctx.strokeStyle = borderColor
                             ctx.lineWidth = 2.5
                             ctx.strokeRect(x0, y0, tankW, tankH)
 
