@@ -231,67 +231,70 @@ def on_connect(cli, *_args):
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
-    payload = msg.payload.decode("utf-8", "replace").strip()
-    with lock:
-        try:
-            if msg.topic == "pickline/x":
-                tags["x"] = float(payload)
-            elif msg.topic == "pickline/y":
-                tags["y"] = float(payload)
-            elif msg.topic == "pickline/z":
-                tags["z"] = float(payload)
-            elif msg.topic == "pickline/busy":
-                tags["busy"] = int(float(payload or 0))
-            elif msg.topic == "pickline/holding":
-                tags["holding"] = int(float(payload or 0))
-            elif msg.topic == "pickline/exited":
-                tags["exited"] = int(float(payload or 0))
-            elif msg.topic == "pickline/fill/a/state":
-                station["a"] = payload
-            elif msg.topic == "pickline/fill/b/state":
-                station["b"] = payload
-            elif msg.topic == "pickline/fill/a/pickups":
-                pickups["a"] = int(float(payload or 0))
-            elif msg.topic == "pickline/fill/b/pickups":
-                pickups["b"] = int(float(payload or 0))
-            elif msg.topic == "pickline/jam":
-                jam_flag = int(float(payload or 0))
-        except ValueError:
-            pass
-
-        if msg.topic == "pickline/command/start":
-            if mode == "auto":
-                start_auto()
-        elif msg.topic == "pickline/command/stop":
-            started = False
-            state = "IDLE"
-            hold_position()
-            client.publish("pickline/target/belt", "0", retain=False)
-        elif msg.topic == "pickline/command/reset":
-            started = False
-            alarm = ""
-            step_idx = 0
-            state = "IDLE"
-            client.publish("pickline/target/belt", "0", retain=False)
-            client.publish("pickline/target/diverter", "0", retain=False)
-            client.publish("pickline/plant/reset", "1", retain=False)
-        elif msg.topic == "pickline/command/mode":
-            mode = "manual" if payload.lower().startswith("m") else "auto"
-            if mode == "manual":
-                started = False
-                state = "MANUAL"
-                hold_position()
-            else:
-                state = "IDLE"
-        elif msg.topic == "pickline/command/gap":
+    try:
+        payload = msg.payload.decode("utf-8", "replace").strip()
+        with lock:
             try:
-                gap = max(0.0, min(30.0, float(payload)))
+                if msg.topic == "pickline/x":
+                    tags["x"] = float(payload)
+                elif msg.topic == "pickline/y":
+                    tags["y"] = float(payload)
+                elif msg.topic == "pickline/z":
+                    tags["z"] = float(payload)
+                elif msg.topic == "pickline/busy":
+                    tags["busy"] = int(float(payload or 0))
+                elif msg.topic == "pickline/holding":
+                    tags["holding"] = int(float(payload or 0))
+                elif msg.topic == "pickline/exited":
+                    tags["exited"] = int(float(payload or 0))
+                elif msg.topic == "pickline/fill/a/state":
+                    station["a"] = payload
+                elif msg.topic == "pickline/fill/b/state":
+                    station["b"] = payload
+                elif msg.topic == "pickline/fill/a/pickups":
+                    pickups["a"] = int(float(payload or 0))
+                elif msg.topic == "pickline/fill/b/pickups":
+                    pickups["b"] = int(float(payload or 0))
+                elif msg.topic == "pickline/jam":
+                    jam_flag = int(float(payload or 0))
             except ValueError:
                 pass
-        elif msg.topic == "pickline/command/side":
-            side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
-        elif msg.topic == "pickline/command/route":
-            route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
+
+            if msg.topic == "pickline/command/start":
+                if mode == "auto":
+                    start_auto()
+            elif msg.topic == "pickline/command/stop":
+                started = False
+                state = "IDLE"
+                hold_position()
+                client.publish("pickline/target/belt", "0", retain=False)
+            elif msg.topic == "pickline/command/reset":
+                started = False
+                alarm = ""
+                step_idx = 0
+                state = "IDLE"
+                client.publish("pickline/target/belt", "0", retain=False)
+                client.publish("pickline/target/diverter", "0", retain=False)
+                client.publish("pickline/plant/reset", "1", retain=False)
+            elif msg.topic == "pickline/command/mode":
+                mode = "manual" if payload.lower().startswith("m") else "auto"
+                if mode == "manual":
+                    started = False
+                    state = "MANUAL"
+                    hold_position()
+                else:
+                    state = "IDLE"
+            elif msg.topic == "pickline/command/gap":
+                try:
+                    gap = max(0.0, min(30.0, float(payload)))
+                except ValueError:
+                    pass
+            elif msg.topic == "pickline/command/side":
+                side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
+            elif msg.topic == "pickline/command/route":
+                route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
+    except Exception as exc:
+        print("PLC on_message error:", repr(exc), flush=True)
 
 
 def step_done(now):
@@ -378,12 +381,15 @@ def main():
     period = 1.0 / LOOP_HZ
     last_alive = 0.0
     while True:
-        now = time.monotonic()
-        tick(now)
-        publish_status()
-        if now - last_alive >= 1.0:
-            client.publish("pickline/plc/alive", "%.0f" % time.time(), retain=True)
-            last_alive = now
+        try:
+            now = time.monotonic()
+            tick(now)
+            publish_status()
+            if now - last_alive >= 1.0:
+                client.publish("pickline/plc/alive", "%.0f" % time.time(), retain=True)
+                last_alive = now
+        except Exception as exc:
+            print("PLC loop error:", repr(exc), flush=True)
         time.sleep(period)
 
 

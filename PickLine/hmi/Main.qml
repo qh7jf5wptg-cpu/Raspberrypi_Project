@@ -391,7 +391,7 @@ ApplicationWindow {
                             Text {
                                 text: "mode " + tag("mode", "auto")
                                       + "   ·   side " + tag("side", "down")
-                                      + "   ·   route " + tag("decision", "STRAIGHT")
+                                      + "   ·   route " + tag("route_mode", "auto")
                                 font.pixelSize: 11
                                 color: "#637083"
                             }
