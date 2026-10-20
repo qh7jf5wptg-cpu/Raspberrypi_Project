@@ -11,6 +11,7 @@ for obj in list(bpy.data.objects):
 def material(name, color, metallic=0.0, roughness=0.5, emission=0.0):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
+    m.diffuse_color = (*color, 1.0)
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Metallic"].default_value = metallic

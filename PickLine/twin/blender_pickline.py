@@ -78,6 +78,10 @@ def _set_light(name, on, color, strength=6.0):
     if not obj.data.materials:
         return
     mat = obj.data.materials[0]
+    if on:
+        mat.diffuse_color = (*color, 1.0)
+    else:
+        mat.diffuse_color = (0.07, 0.08, 0.10, 1.0)
     if not mat.use_nodes:
         return
     for node in mat.node_tree.nodes:
