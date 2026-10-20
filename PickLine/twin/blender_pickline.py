@@ -75,8 +75,13 @@ def _set_light(name, on, color, strength=6.0):
         return
     for node in mat.node_tree.nodes:
         if node.type == "BSDF_PRINCIPLED":
-            node.inputs["Emission Color"].default_value = (*color, 1.0)
-            node.inputs["Emission Strength"].default_value = strength if on else 0.0
+            if on:
+                node.inputs["Base Color"].default_value = (*color, 1.0)
+                node.inputs["Emission Color"].default_value = (*color, 1.0)
+                node.inputs["Emission Strength"].default_value = strength
+            else:
+                node.inputs["Base Color"].default_value = (0.07, 0.08, 0.10, 1.0)
+                node.inputs["Emission Strength"].default_value = 0.0
             break
 
 
@@ -345,13 +350,11 @@ def apply_twin():
                and not state.get("paused", 0) and not state.get("estop", 0))
     blink = int(time.time() * 2) % 2 == 0
     red_on = state.get("estop", 0) or state.get("state", "") == "FAULT"
-    amber_on = state.get("paused", 0)
+    yellow_on = state.get("paused", 0)
     green_on = running and blink
-    blue_on = state.get("mode", "auto") == "manual"
     _set_light("TowerRed", red_on, (1.0, 0.05, 0.05))
-    _set_light("TowerAmber", amber_on, (1.0, 0.55, 0.0))
+    _set_light("TowerYellow", yellow_on, (1.0, 0.9, 0.1))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
-    _set_light("TowerBlue", blue_on, (0.1, 0.35, 1.0))
 
     sync_settings()
     return 0.05
