@@ -259,18 +259,22 @@ ApplicationWindow {
                         var lr = 11
                         var lsp = 28
                         var topY = ly - lsp - lr - 7
-                        var bottomY = ly + lsp + lr + 7
+                        var bottomY = ly + 2 * lsp + lr + 7
                         ctx.fillStyle = "#1a2233"
                         ctx.fillRect(lx - 24, topY, 48, bottomY - topY)
                         var redOn = num("estop", 0) > 0 || tag("state", "") === "FAULT"
                         var yellowOn = num("paused", 0) > 0
                         var greenOn = machineRunning() && blinkOn
+                        var blueOn = tag("fill/a/state", "") === "FULL"
+                                     && tag("fill/b/state", "") === "FULL" && blinkOn
                         ctx.fillStyle = redOn ? "#e74c3c" : "#2a3448"
                         ctx.beginPath(); ctx.arc(lx, ly - lsp, lr, 0, Math.PI * 2); ctx.fill()
                         ctx.fillStyle = yellowOn ? "#f1c40f" : "#2a3448"
                         ctx.beginPath(); ctx.arc(lx, ly, lr, 0, Math.PI * 2); ctx.fill()
                         ctx.fillStyle = greenOn ? "#2ecc71" : "#2a3448"
                         ctx.beginPath(); ctx.arc(lx, ly + lsp, lr, 0, Math.PI * 2); ctx.fill()
+                        ctx.fillStyle = blueOn ? "#3d82f6" : "#2a3448"
+                        ctx.beginPath(); ctx.arc(lx, ly + 2 * lsp, lr, 0, Math.PI * 2); ctx.fill()
 
                         // Two bins.
                         function drawBin(binY, label) {
