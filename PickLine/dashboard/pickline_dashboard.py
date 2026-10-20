@@ -91,7 +91,7 @@ HTML = """<!doctype html>
   .station h2 { margin:0 0 8px; font-size:14px; }
   .bar { height:18px; background:#0b0f18; border-radius:6px; overflow:hidden; }
   .bar > div { height:100%; background:var(--blue); transition:width .3s; }
-  .bar.full > div { background:var(--green); }
+  .bar.full > div { background:var(--red); }
   .bar.fault > div { background:var(--red); }
   .chart-wrap { background:var(--card); border-radius:12px; padding:14px; }
   canvas { max-height:300px; }
@@ -114,12 +114,12 @@ HTML = """<!doctype html>
   <div class="stations">
     <div class="station">
       <h2>Station A <span id="a-state" style="color:var(--muted)"></span></h2>
-      <div class="bar" id="a-bar"><div style="width:0%"></div></div>
+      <div class="bar" id="a-bar"><div id="a-fill" style="width:0%"></div></div>
       <p id="a-info" style="color:var(--muted);font-size:12px"></p>
     </div>
     <div class="station">
       <h2>Station B <span id="b-state" style="color:var(--muted)"></span></h2>
-      <div class="bar" id="b-bar"><div style="width:0%"></div></div>
+      <div class="bar" id="b-bar"><div id="b-fill" style="width:0%"></div></div>
       <p id="b-info" style="color:var(--muted);font-size:12px"></p>
     </div>
   </div>
@@ -163,7 +163,7 @@ async function poll(){
       const pickups = parseInt(t['fill/'+k+'/pickups']||1)||1;
       const st = t['fill/'+k+'/state']||'EMPTY';
       const pct = Math.min(100, filled/pickups*100);
-      el(p+'-bar').style.width = pct + '%';
+      el(p+'-fill').style.width = pct + '%';
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
       el(p+'-state').textContent = st;
       el(p+'-info').textContent = filled+' / '+pickups+' pickups · '+(t['fill/'+k+'/count']||0)+' fills'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
