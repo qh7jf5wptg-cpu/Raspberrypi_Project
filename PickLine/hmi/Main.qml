@@ -537,6 +537,7 @@ ApplicationWindow {
                                 tag("paused", "0") === "1" ? "pickline/command/resume" : "pickline/command/pause",
                                 "1")
                             background: Rectangle {
+                                implicitHeight: 40
                                 radius: 4
                                 border.color: "#b8c4d2"
                                 color: !pauseBtn.enabled ? "#1a2233"
@@ -548,7 +549,7 @@ ApplicationWindow {
                                 color: !pauseBtn.enabled ? "#6b7688"
                                        : tag("paused", "0") === "1" ? "#1a1a1a"
                                        : "#172033"
-                                font.pixelSize: 13
+                                font.pixelSize: 14
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }

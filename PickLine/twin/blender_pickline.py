@@ -68,7 +68,14 @@ def _set_color(obj, color):
 
 def _set_light(name, on, color, strength=6.0):
     obj = _obj(name)
-    if obj is None or not obj.data.materials:
+    if obj is None:
+        return
+    # Viewport display color (visible in Solid view) so the blink shows everywhere.
+    if on:
+        obj.color = (color[0], color[1], color[2], 1.0)
+    else:
+        obj.color = (0.07, 0.08, 0.10, 1.0)
+    if not obj.data.materials:
         return
     mat = obj.data.materials[0]
     if not mat.use_nodes:
@@ -83,6 +90,15 @@ def _set_light(name, on, color, strength=6.0):
                 node.inputs["Base Color"].default_value = (0.07, 0.08, 0.10, 1.0)
                 node.inputs["Emission Strength"].default_value = 0.0
             break
+
+
+def _redraw():
+    try:
+        for area in bpy.context.screen.areas:
+            if area.type == "VIEW_3D":
+                area.tag_redraw()
+    except Exception:
+        pass
 
 
 _syncing = False
@@ -359,6 +375,7 @@ def apply_twin():
     _set_light("TowerYellow", yellow_on, (1.0, 0.9, 0.1))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
     _set_light("TowerBlue", blue_on, (0.1, 0.35, 1.0))
+    _redraw()
 
     sync_settings()
     return 0.05
