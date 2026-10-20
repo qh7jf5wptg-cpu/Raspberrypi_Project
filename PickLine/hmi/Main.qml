@@ -510,6 +510,7 @@ ApplicationWindow {
                             Repeater {
                                 model: [["a", "STATION A", "straight"], ["b", "STATION B", "left"]]
                                 delegate: ColumnLayout {
+                                    property string key: modelData[0]
                                     Layout.fillWidth: true
                                     spacing: 3
 
@@ -539,9 +540,22 @@ ApplicationWindow {
                                             color: "#4aa3df"
                                         }
                                     }
+                                    Row {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Repeater {
+                                            model: fillPasses(key)
+                                            delegate: Rectangle {
+                                                width: 12
+                                                height: 12
+                                                radius: 6
+                                                color: index < fillPass(key) ? "#4aa3df" : "#d0d7e0"
+                                            }
+                                        }
+                                    }
                                     Text {
-                                        text: fillLevel(modelData[0]).toFixed(1) + " / " + num("volume", 100).toFixed(0)
-                                              + " u   ·   pass " + fillPass(modelData[0]).toFixed(0)
+                                        text: fillPct(modelData[0]).toFixed(0) + "%   ·   pass "
+                                              + fillPass(modelData[0]).toFixed(0)
                                               + " / " + fillPasses(modelData[0]).toFixed(0)
                                         font.pixelSize: 10
                                         color: "#637083"
