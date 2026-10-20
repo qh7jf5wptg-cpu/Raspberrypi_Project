@@ -533,6 +533,8 @@ ApplicationWindow {
                             id: pauseBtn
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            Layout.minimumWidth: 0
+                            Layout.preferredWidth: 0
                             text: tag("paused", "0") === "1" ? "Resume" : "Pause"
                             enabled: tag("paused", "0") === "1" || canPause()
                             onClicked: bridge.publish(
@@ -559,12 +561,16 @@ ApplicationWindow {
                         Button {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            Layout.minimumWidth: 0
+                            Layout.preferredWidth: 0
                             text: "Emergency"
                             onClicked: bridge.publish("pickline/command/estop", "1")
                         }
                         Button {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            Layout.minimumWidth: 0
+                            Layout.preferredWidth: 0
                             text: "Clear belt"
                             onClicked: bridge.publish("pickline/command/clear_belt", "1")
                         }
