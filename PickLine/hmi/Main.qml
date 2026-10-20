@@ -540,18 +540,6 @@ ApplicationWindow {
                             onClicked: bridge.publish(
                                 tag("paused", "0") === "1" ? "pickline/command/resume" : "pickline/command/pause",
                                 "1")
-                            background: Rectangle {
-                                implicitHeight: 40
-                                radius: 4
-                                color: !pauseBtn.enabled ? "#9aa5b1" : "#2a3448"
-                            }
-                            contentItem: Text {
-                                text: pauseBtn.text
-                                color: "#ffffff"
-                                font.pixelSize: 14
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
                         }
                         Button {
                             Layout.fillWidth: true
