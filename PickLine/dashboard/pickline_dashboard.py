@@ -166,7 +166,7 @@ async function poll(){
       el(p+'-bar').style.width = pct + '%';
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
       el(p+'-state').textContent = st;
-      el(p+'-info').textContent = lvl.toFixed(1)+' / '+vol.toFixed(0)+' u · '+(t['fill/'+k+'/count']||0)+' fills · '+(t['fill/'+k+'/rate']||0)+' u/s'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
+      el(p+'-info').textContent = lvl.toFixed(1)+' / '+vol.toFixed(0)+' u · '+(t['fill/'+k+'/count']||0)+' fills · pass '+(t['fill/'+k+'/pass']||0)+'/'+(t['fill/'+k+'/passes']||0)+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
     });
 
     A.length = B.length = L.length = 0;

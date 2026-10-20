@@ -37,10 +37,11 @@ LOOP_HZ = 20.0
 VOLUME = 100.0          # container capacity, units (same for every container)
 VOLUME_MIN = 10.0
 VOLUME_MAX = 500.0
-FILL_A_RATE = 40.0      # station A (straight) fill speed, units/s
-FILL_B_RATE = 25.0      # station B (left) fill speed, units/s — different on purpose
-RATE_MIN = 1.0
-RATE_MAX = 200.0
+FILL_A_PASSES = 2       # station A fills a container in 2 passes (fast)
+FILL_B_PASSES = 5       # station B fills a container in 5 passes (slow)
+PASSES_MIN = 1
+PASSES_MAX = 10
+PASS_TIME = 0.6         # seconds per fill pass
 
 X_MAX, Y_MAX, Z_MAX = 300.0, 220.0, 100.0
 PICK_DOWN = (260.0, 20.0, 0.0)
@@ -78,8 +79,10 @@ exited = 0
 
 volume = VOLUME
 fill = {
-    "a": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_A_RATE, "alarm": ""},
-    "b": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "rate": FILL_B_RATE, "alarm": ""},
+    "a": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "passes": FILL_A_PASSES,
+          "pass": 0, "pass_timer": 0.0, "alarm": ""},
+    "b": {"state": "EMPTY", "level": 0.0, "valve": 0, "count": 0, "passes": FILL_B_PASSES,
+          "pass": 0, "pass_timer": 0.0, "alarm": ""},
 }
 total = 0.0
 jam = False
@@ -145,21 +148,25 @@ def on_message(_client, _userdata, msg):
                 belt_speed = clamp(float(payload), BELT_SPEED_MIN, BELT_SPEED_MAX)
             elif msg.topic == "pickline/target/volume":
                 volume = clamp(float(payload), VOLUME_MIN, VOLUME_MAX)
-            elif msg.topic == "pickline/target/fill/a/rate":
-                fill["a"]["rate"] = clamp(float(payload), RATE_MIN, RATE_MAX)
-            elif msg.topic == "pickline/target/fill/b/rate":
-                fill["b"]["rate"] = clamp(float(payload), RATE_MIN, RATE_MAX)
+            elif msg.topic == "pickline/target/fill/a/passes":
+                fill["a"]["passes"] = int(clamp(float(payload), PASSES_MIN, PASSES_MAX))
+            elif msg.topic == "pickline/target/fill/b/passes":
+                fill["b"]["passes"] = int(clamp(float(payload), PASSES_MIN, PASSES_MAX))
             elif msg.topic == "pickline/fill/a/take":
                 if payload.lower() in ("1", "true", "on", "take"):
                     if fill["a"]["state"] in ("FULL", "FAULT"):
                         fill["a"]["state"] = "EMPTY"
                         fill["a"]["level"] = 0.0
+                        fill["a"]["pass"] = 0
+                        fill["a"]["pass_timer"] = 0.0
                         fill["a"]["alarm"] = ""
             elif msg.topic == "pickline/fill/b/take":
                 if payload.lower() in ("1", "true", "on", "take"):
                     if fill["b"]["state"] in ("FULL", "FAULT"):
                         fill["b"]["state"] = "EMPTY"
                         fill["b"]["level"] = 0.0
+                        fill["b"]["pass"] = 0
+                        fill["b"]["pass_timer"] = 0.0
                         fill["b"]["alarm"] = ""
             elif msg.topic == "pickline/plant/reset":
                 reset_plant()
@@ -175,6 +182,8 @@ def enter_station(key):
     global part_lane, part_x, part_y, exited
     fill[key]["state"] = "FILLING"
     fill[key]["level"] = 0.0
+    fill[key]["pass"] = 0
+    fill[key]["pass_timer"] = 0.0
     part_lane = "none"
     part_x = -1.0
     part_y = -1.0
@@ -258,18 +267,22 @@ def step(dt):
             if fill["b"]["state"] == "EMPTY":
                 enter_station("b")
 
-        # Fill the container at each station.
+        # Fill the container at each station, one pass at a time.
         for key in ("a", "b"):
             st = fill[key]
             if st["state"] == "FILLING":
                 st["valve"] = 1
-                st["level"] += st["rate"] * dt
-                if st["level"] >= volume:
-                    st["level"] = volume
-                    st["state"] = "FULL"
-                    st["valve"] = 0
-                    st["count"] += 1
-                    total += volume
+                st["pass_timer"] += dt
+                if st["pass_timer"] >= PASS_TIME:
+                    st["pass_timer"] -= PASS_TIME
+                    st["pass"] += 1
+                    st["level"] = min(volume, st["level"] + volume / max(st["passes"], 1))
+                    if st["pass"] >= st["passes"]:
+                        st["level"] = volume
+                        st["state"] = "FULL"
+                        st["valve"] = 0
+                        st["count"] += 1
+                        total += volume
             else:
                 st["valve"] = 0
 
@@ -326,7 +339,8 @@ def snapshot():
             values["pickline/fill/%s/level" % key] = "%.1f" % st["level"]
             values["pickline/fill/%s/count" % key] = str(st["count"])
             values["pickline/fill/%s/valve" % key] = "1" if st["valve"] else "0"
-            values["pickline/fill/%s/rate" % key] = "%.0f" % st["rate"]
+            values["pickline/fill/%s/passes" % key] = str(st["passes"])
+            values["pickline/fill/%s/pass" % key] = str(st["pass"])
             values["pickline/fill/%s/alarm" % key] = st["alarm"]
         return values
 

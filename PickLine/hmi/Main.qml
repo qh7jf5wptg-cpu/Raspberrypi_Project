@@ -50,7 +50,8 @@ ApplicationWindow {
     function fillState(key) { return tag("fill/" + key + "/state", "EMPTY") }
     function fillLevel(key) { return num("fill/" + key + "/level", 0) }
     function fillCount(key) { return tag("fill/" + key + "/count", "0") }
-    function fillRate(key) { return num("fill/" + key + "/rate", 40) }
+    function fillPasses(key) { return num("fill/" + key + "/passes", 2) }
+    function fillPass(key) { return num("fill/" + key + "/pass", 0) }
     function fillPct(key) {
         var v = num("volume", 100)
         return v > 0 ? Math.min(100, fillLevel(key) / v * 100) : 0
@@ -540,24 +541,25 @@ ApplicationWindow {
                                     }
                                     Text {
                                         text: fillLevel(modelData[0]).toFixed(1) + " / " + num("volume", 100).toFixed(0)
-                                              + " u   @ " + fillRate(modelData[0]).toFixed(0) + " u/s"
+                                              + " u   ·   pass " + fillPass(modelData[0]).toFixed(0)
+                                              + " / " + fillPasses(modelData[0]).toFixed(0)
                                         font.pixelSize: 10
                                         color: "#637083"
                                     }
                                     Slider {
-                                        id: rateSlider
+                                        id: passSlider
                                         Layout.fillWidth: true
                                         from: 1
-                                        to: 200
-                                        value: fillRate(modelData[0])
+                                        to: 10
+                                        value: fillPasses(modelData[0])
                                         onMoved: if (pressed)
-                                            bridge.publish("pickline/target/fill/" + modelData[0] + "/rate",
+                                            bridge.publish("pickline/target/fill/" + modelData[0] + "/passes",
                                                            Math.round(value).toString())
                                         Connections {
                                             target: bridge
                                             function onTagsChanged() {
-                                                if (!rateSlider.pressed)
-                                                    rateSlider.value = fillRate(modelData[0])
+                                                if (!passSlider.pressed)
+                                                    passSlider.value = fillPasses(modelData[0])
                                             }
                                         }
                                     }

@@ -24,11 +24,12 @@ then blocks until the full container is taken out manually.
   mm/s. Past the belt end there is a short straight approach to station A
   `(460, 100)` and a left approach to station B `(400, 240)`.
 - **Two fill stations** — every container has the same adjustable volume
-  (default 100 units). Station A fills faster than station B (both rates
-  adjustable), so the stations are deliberately different.
-- **Routing** — containers alternate straight / left one by one. When a
-  station holds a full container it blocks, and new containers route only to
-  the other station. If neither station is free the cell waits.
+  (default 100 units). A container is filled in discrete passes: station A
+  needs 2 passes (fast) and station B needs 5 passes (slow); both pass counts
+  are adjustable.
+- **Routing** — when both stations are free the faster station (fewer passes)
+  is preferred; when one is blocked the other is used; if neither is free the
+  cell waits.
 - **Take-out is manual** — a "Take out" button (or MQTT message) removes a
   full container and frees that station.
 
@@ -44,8 +45,8 @@ Sensors (plant → everyone):
 | `pickline/belt`, `speed`, `diverter` | conveyor state |
 | `pickline/placed`, `exited` | fed onto belt / entered a station |
 | `pickline/volume` | container capacity, units |
-| `pickline/fill/a/level`, `state`, `count`, `rate`, `valve` | station A |
-| `pickline/fill/b/level`, `state`, `count`, `rate`, `valve` | station B |
+| `pickline/fill/a/level`, `state`, `count`, `pass`, `passes`, `valve` | station A |
+| `pickline/fill/b/level`, `state`, `count`, `pass`, `passes`, `valve` | station B |
 | `pickline/fill/total` | total liquid dispensed, units |
 
 Actuators (PLC or HMI → plant):
@@ -54,7 +55,7 @@ Actuators (PLC or HMI → plant):
 | --- | --- |
 | `pickline/target/x`, `y`, `z`, `grip`, `belt`, `diverter`, `speed` | gantry/conveyor |
 | `pickline/target/volume` | container capacity (10–500) |
-| `pickline/target/fill/a/rate`, `fill/b/rate` | fill speed (1–200 u/s) |
+| `pickline/target/fill/a/passes`, `fill/b/passes` | passes to fill (1–10) |
 | `pickline/fill/a/take`, `fill/b/take` | take out a full container |
 | `pickline/plant/reset` | clear belt, stations and counters |
 
@@ -102,8 +103,8 @@ Adjust the container volume and fill speeds:
 
 ```sh
 mosquitto_pub -t pickline/target/volume       -m 120
-mosquitto_pub -t pickline/target/fill/a/rate  -m 45
-mosquitto_pub -t pickline/target/fill/b/rate  -m 30
+mosquitto_pub -t pickline/target/fill/a/passes  -m 2
+mosquitto_pub -t pickline/target/fill/b/passes  -m 5
 ```
 
 Watch everything:

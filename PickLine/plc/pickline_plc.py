@@ -60,6 +60,7 @@ client = None
 
 tags = {"x": 0.0, "y": 0.0, "z": 60.0, "busy": 0, "holding": 0, "exited": 0}
 station = {"a": "EMPTY", "b": "EMPTY"}
+passes = {"a": 2, "b": 5}
 jam_flag = 0
 state = "IDLE"
 mode = "auto"
@@ -133,8 +134,14 @@ def decide_route():
     a_free = station["a"] == "EMPTY"
     b_free = station["b"] == "EMPTY"
     if a_free and b_free:
-        alternate_flag = not alternate_flag
-        apply_diverter(alternate_flag)
+        # Prefer the faster station (fewer passes); alternate on a tie.
+        if passes["a"] < passes["b"]:
+            apply_diverter(False)
+        elif passes["b"] < passes["a"]:
+            apply_diverter(True)
+        else:
+            alternate_flag = not alternate_flag
+            apply_diverter(alternate_flag)
     elif a_free:
         apply_diverter(False)
     elif b_free:
@@ -193,6 +200,8 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/exited")
     cli.subscribe("pickline/fill/a/state")
     cli.subscribe("pickline/fill/b/state")
+    cli.subscribe("pickline/fill/a/passes")
+    cli.subscribe("pickline/fill/b/passes")
     cli.subscribe("pickline/jam")
     cli.subscribe("pickline/command/#")
 
@@ -218,6 +227,10 @@ def on_message(_cli, _userdata, msg):
                 station["a"] = payload
             elif msg.topic == "pickline/fill/b/state":
                 station["b"] = payload
+            elif msg.topic == "pickline/fill/a/passes":
+                passes["a"] = int(float(payload or 0))
+            elif msg.topic == "pickline/fill/b/passes":
+                passes["b"] = int(float(payload or 0))
             elif msg.topic == "pickline/jam":
                 jam_flag = int(float(payload or 0))
         except ValueError:
