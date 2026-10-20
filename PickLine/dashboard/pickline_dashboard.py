@@ -162,6 +162,9 @@ HTML = """<!doctype html>
         <button id="btn-stop">Stop</button>
         <button id="btn-reset">Reset</button>
         <button id="btn-mode">Manual</button>
+        <button id="btn-pause">Pause</button>
+        <button id="btn-emergency">Emergency</button>
+        <button id="btn-clear-belt">Clear belt</button>
       </div>
     </div>
   </div>
@@ -233,6 +236,11 @@ el('btn-reset').addEventListener('click', () => send('pickline/command/reset', '
 el('btn-mode').addEventListener('click', () => {
   send('pickline/command/mode', el('mode-val').textContent === 'auto' ? 'manual' : 'auto');
 });
+el('btn-pause').addEventListener('click', () => {
+  send('pickline/command/' + (el('btn-pause').textContent === 'Pause' ? 'pause' : 'resume'), '1');
+});
+el('btn-emergency').addEventListener('click', () => send('pickline/command/estop', '1'));
+el('btn-clear-belt').addEventListener('click', () => send('pickline/command/clear_belt', '1'));
 document.querySelectorAll('.route-btns button').forEach((btn) => {
   btn.addEventListener('click', () => send('pickline/command/route', btn.dataset.route));
 });
@@ -242,7 +250,18 @@ async function poll(){
     const r = await fetch('/api');
     const d = await r.json();
     const t = d.latest || {};
-    barState(t.state);
+    const paused = t.paused === '1';
+    const estop = t.estop === '1';
+    if (estop) {
+      el('state').textContent = 'EMERGENCY STOP';
+      el('state').className = 'state FAULT';
+    } else if (paused) {
+      el('state').textContent = 'PAUSED';
+      el('state').className = 'state WAIT_STATION';
+    } else {
+      barState(t.state);
+    }
+    el('btn-pause').textContent = paused ? 'Resume' : 'Pause';
     el('mode').textContent = 'mode ' + (t.mode || '—') + ' · ' + (t.decision || '—');
     el('alarm').textContent = t.alarm || (t.jam === '1' ? 'BELT JAM' : '');
     const aCount = parseInt(t['fill/a/count']||0)||0;

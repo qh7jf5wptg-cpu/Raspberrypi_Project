@@ -62,6 +62,9 @@ tags = {"x": 0.0, "y": 0.0, "z": 60.0, "busy": 0, "holding": 0, "exited": 0}
 station = {"a": "EMPTY", "b": "EMPTY"}
 pickups = {"a": 2, "b": 5}
 jam_flag = 0
+paused = False
+estop = False
+part_on_line = 0
 state = "IDLE"
 mode = "auto"
 started = False
@@ -233,11 +236,13 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/fill/a/pickups")
     cli.subscribe("pickline/fill/b/pickups")
     cli.subscribe("pickline/jam")
+    cli.subscribe("pickline/part_on_line")
     cli.subscribe("pickline/command/#")
 
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
+    global paused, estop, part_on_line
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -264,12 +269,20 @@ def on_message(_cli, _userdata, msg):
                     pickups["b"] = int(float(payload or 0))
                 elif msg.topic == "pickline/jam":
                     jam_flag = int(float(payload or 0))
+                elif msg.topic == "pickline/part_on_line":
+                    part_on_line = int(float(payload or 0))
             except ValueError:
                 pass
 
             if msg.topic == "pickline/command/start":
                 if mode == "auto":
-                    start_auto()
+                    if estop and part_on_line:
+                        state = "ESTOP"
+                        alarm = "CLEAR BELT TO START"
+                    else:
+                        estop = False
+                        paused = False
+                        start_auto()
             elif msg.topic == "pickline/command/stop":
                 started = False
                 state = "IDLE"
@@ -280,6 +293,8 @@ def on_message(_cli, _userdata, msg):
                 alarm = ""
                 step_idx = 0
                 state = "IDLE"
+                estop = False
+                paused = False
                 client.publish("pickline/target/belt", "0", retain=False)
                 client.publish("pickline/target/diverter", "0", retain=False)
                 client.publish("pickline/plant/reset", "1", retain=False)
@@ -300,6 +315,21 @@ def on_message(_cli, _userdata, msg):
                 side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
             elif msg.topic == "pickline/command/route":
                 route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
+            elif msg.topic == "pickline/command/pause":
+                if mode == "auto" and started and not paused and step_idx <= 5:
+                    paused = True
+                    hold_position()
+            elif msg.topic == "pickline/command/resume":
+                paused = False
+            elif msg.topic == "pickline/command/estop":
+                estop = True
+                started = False
+                paused = False
+                state = "ESTOP"
+                client.publish("pickline/target/belt", "0", retain=False)
+                hold_position()
+            elif msg.topic == "pickline/command/clear_belt":
+                client.publish("pickline/clear_belt", "1", retain=False)
     except Exception as exc:
         print("PLC on_message error:", repr(exc), flush=True)
 
@@ -330,6 +360,9 @@ def tick(now):
             state = "FAULT"
             alarm = "BELT JAM"
             client.publish("pickline/target/belt", "0", retain=False)
+            return
+
+        if estop or paused:
             return
 
         name, kind, arg = SEQUENCE[step_idx]
@@ -370,6 +403,8 @@ def publish_status():
         "pickline/route_mode": route_mode,
         "pickline/decision": decision,
         "pickline/gap": "%.2f" % gap,
+        "pickline/paused": "1" if paused else "0",
+        "pickline/estop": "1" if estop else "0",
         "pickline/alarm": alarm,
     }
     for topic, payload in values.items():

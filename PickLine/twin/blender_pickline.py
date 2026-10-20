@@ -173,6 +173,23 @@ class PICKLINE_PT_control(bpy.types.Panel):
         op.payload = "1"
 
         box = layout.box()
+        box.label(text="Safety")
+        row = box.row(align=True)
+        op = row.operator("pickline.publish", text="Pause")
+        op.topic = "pickline/command/pause"
+        op.payload = "1"
+        op = row.operator("pickline.publish", text="Resume")
+        op.topic = "pickline/command/resume"
+        op.payload = "1"
+        row = box.row(align=True)
+        op = row.operator("pickline.publish", text="Emergency")
+        op.topic = "pickline/command/estop"
+        op.payload = "1"
+        op = row.operator("pickline.publish", text="Clear belt")
+        op.topic = "pickline/command/clear_belt"
+        op.payload = "1"
+
+        box = layout.box()
         box.label(text="Settings")
         box.prop(settings, "gap")
         box.prop(settings, "speed")

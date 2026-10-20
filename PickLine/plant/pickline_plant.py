@@ -122,12 +122,22 @@ def reset_plant():
         fill[key]["pour_timer"] = 0.0
 
 
+def clear_belt():
+    global part_lane, part_x, part_y, placed
+    if part_lane in ("belt", "straight", "left", "wait_a", "wait_b"):
+        part_lane = "none"
+        part_x = -1.0
+        part_y = -1.0
+        placed = max(0, placed - 1)
+
+
 def on_connect(client, *_args):
     client.subscribe("pickline/target/#")
     client.subscribe("pickline/plant/reset")
     client.subscribe("pickline/fill/a/take")
     client.subscribe("pickline/fill/b/take")
     client.subscribe("pickline/fault/#")
+    client.subscribe("pickline/clear_belt")
 
 
 def on_message(_client, _userdata, msg):
@@ -175,6 +185,8 @@ def on_message(_client, _userdata, msg):
                         fill["b"]["alarm"] = ""
             elif msg.topic == "pickline/plant/reset":
                 reset_plant()
+            elif msg.topic == "pickline/clear_belt":
+                clear_belt()
             elif msg.topic == "pickline/fault/jam":
                 jam = payload.lower() in ("1", "true", "on", "jam")
             elif msg.topic == "pickline/fault/clear":
@@ -321,6 +333,7 @@ def snapshot():
             "pickline/part_x": "%.2f" % px,
             "pickline/part_y": "%.2f" % py,
             "pickline/part_z": "%.2f" % pz,
+            "pickline/part_on_line": "1" if part_lane != "none" else "0",
             "pickline/belt": "%.2f" % belt,
             "pickline/belt_pos": "%.1f" % belt_pos,
             "pickline/speed": "%.0f" % belt_speed,

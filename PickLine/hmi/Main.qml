@@ -376,10 +376,15 @@ ApplicationWindow {
                                 color: "#7f8c9b"
                             }
                             Text {
-                                text: plcOnline ? tag("state", "IDLE") : "PLC OFFLINE"
+                            text: !plcOnline ? "PLC OFFLINE"
+                                  : tag("estop", "0") === "1" ? "EMERGENCY STOP"
+                                  : tag("paused", "0") === "1" ? "PAUSED"
+                                  : tag("state", "IDLE")
                                 font.pixelSize: 22
                                 font.bold: true
-                                color: (!plcOnline || tag("state", "") === "FAULT") ? "#c0392b" : "#172033"
+                            color: (!plcOnline || tag("state", "") === "FAULT" || tag("estop", "0") === "1") ? "#c0392b"
+                                   : tag("paused", "0") === "1" ? "#e67e22"
+                                   : "#172033"
                             }
                             Text {
                                 text: "X " + num("x", 0).toFixed(0)
@@ -480,6 +485,29 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             text: "Clear jam"
                             onClicked: bridge.publish("pickline/fault/clear", "1")
+                        }
+                    }
+
+                    // Pause / emergency / clear belt.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Button {
+                            Layout.fillWidth: true
+                            text: tag("paused", "0") === "1" ? "Resume" : "Pause"
+                            onClicked: bridge.publish(
+                                tag("paused", "0") === "1" ? "pickline/command/resume" : "pickline/command/pause",
+                                "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Emergency"
+                            onClicked: bridge.publish("pickline/command/estop", "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Clear belt"
+                            onClicked: bridge.publish("pickline/command/clear_belt", "1")
                         }
                     }
 
