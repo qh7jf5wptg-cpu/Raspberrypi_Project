@@ -97,6 +97,9 @@ HTML = """<!doctype html>
   .route-btns button { padding:7px; border:1px solid #2a3448; background:#1a2233; color:var(--muted);
                         border-radius:6px; cursor:pointer; font-weight:700; }
   .route-btns button.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .ctrl-btns { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+  .ctrl-btns button { padding:7px; border:1px solid #2a3448; background:#1a2233; color:var(--muted);
+                       border-radius:6px; cursor:pointer; font-weight:700; }
   .stations { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
   @media (max-width:640px){ .stations { grid-template-columns:1fr; } }
   .station { background:var(--card); border-radius:12px; padding:14px; }
@@ -149,6 +152,16 @@ HTML = """<!doctype html>
         <button data-route="straight">Straight</button>
         <button data-route="left">Left</button>
         <button data-route="alternate">Alt</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">Control</div>
+      <div class="value" id="mode-val">auto</div>
+      <div class="ctrl-btns">
+        <button id="btn-start">Start</button>
+        <button id="btn-stop">Stop</button>
+        <button id="btn-reset">Reset</button>
+        <button id="btn-mode">Manual</button>
       </div>
     </div>
   </div>
@@ -211,6 +224,15 @@ gapSlider.addEventListener('change', () => send('pickline/command/gap', gapSlide
 speedSlider.addEventListener('change', () => send('pickline/target/speed', speedSlider.value));
 el('a-take').addEventListener('click', () => send('pickline/fill/a/take', '1'));
 el('b-take').addEventListener('click', () => send('pickline/fill/b/take', '1'));
+el('btn-start').addEventListener('click', () => {
+  send('pickline/command/mode', 'auto');
+  send('pickline/command/start', '1');
+});
+el('btn-stop').addEventListener('click', () => send('pickline/command/stop', '1'));
+el('btn-reset').addEventListener('click', () => send('pickline/command/reset', '1'));
+el('btn-mode').addEventListener('click', () => {
+  send('pickline/command/mode', el('mode-val').textContent === 'auto' ? 'manual' : 'auto');
+});
 document.querySelectorAll('.route-btns button').forEach((btn) => {
   btn.addEventListener('click', () => send('pickline/command/route', btn.dataset.route));
 });
@@ -242,6 +264,10 @@ async function poll(){
     document.querySelectorAll('.route-btns button').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.route === route);
     });
+
+    const mode = t.mode || 'auto';
+    el('mode-val').textContent = mode;
+    el('btn-mode').textContent = mode === 'auto' ? 'Manual' : 'Auto';
 
     [['a','a'],['b','b']].forEach(([k,p]) => {
       const filled = parseInt(t['fill/'+k+'/filled']||0)||0;
