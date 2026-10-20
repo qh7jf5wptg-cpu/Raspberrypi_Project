@@ -1,4 +1,4 @@
-"""Create the Blender scene for the PickLine (gantry + conveyor, two exits)."""
+"""Create the Blender scene for the PickLine (gantry + conveyor, two fill stations)."""
 import bpy
 from mathutils import Vector
 
@@ -26,9 +26,22 @@ def tank_material(name, color):
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
-    bsdf.inputs["Alpha"].default_value = 0.25
-    bsdf.inputs["Roughness"].default_value = 0.15
+    bsdf.inputs["Alpha"].default_value = 0.18
+    bsdf.inputs["Roughness"].default_value = 0.08
     m.blend_method = "BLEND"
+    return m
+
+
+def grid_material(name, dark, light):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    checker = m.node_tree.nodes.new("ShaderNodeTexChecker")
+    checker.inputs["Color1"].default_value = (*dark, 1.0)
+    checker.inputs["Color2"].default_value = (*light, 1.0)
+    checker.inputs["Scale"].default_value = 10.0
+    m.node_tree.links.new(checker.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.85
     return m
 
 
@@ -51,24 +64,27 @@ def box(name, loc, scale, mat):
     return obj
 
 
-floor_mat = material("Floor", (0.10, 0.11, 0.13), roughness=0.9)
-belt_mat = material("Belt", (0.32, 0.35, 0.40), roughness=0.75)
-lane_mat = material("Lane", (0.55, 0.44, 0.26), roughness=0.75)
-roller_mat = material("Roller", (0.55, 0.58, 0.62), metallic=0.6, roughness=0.3)
-frame_mat = material("Frame", (0.24, 0.29, 0.36), metallic=0.5, roughness=0.4)
-bin_mat = material("Bin", (0.80, 0.62, 0.10), roughness=0.5)
-gate_mat = material("Gate", (0.85, 0.30, 0.22), roughness=0.4)
-tool_mat = material("Tool", (0.90, 0.45, 0.12), roughness=0.4)
-part_mat = material("Part", (0.95, 0.78, 0.10), roughness=0.35)
-sensor_mat = material("Sensor", (0.18, 0.22, 0.26), roughness=0.5)
-tank_mat = tank_material("Tank", (0.75, 0.80, 0.86))
-liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.2, emission=0.4)
-nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.7, roughness=0.3)
-stream_mat = material("Stream", (0.35, 0.75, 0.95), emission=2.0)
+floor_mat = grid_material("Floor", (0.08, 0.09, 0.11), (0.12, 0.14, 0.17))
+belt_mat = material("Belt", (0.16, 0.18, 0.21), roughness=0.55)
+lane_mat = material("Lane", (0.42, 0.32, 0.18), roughness=0.6)
+roller_mat = material("Roller", (0.62, 0.66, 0.72), metallic=0.9, roughness=0.25)
+frame_mat = material("Frame", (0.20, 0.24, 0.30), metallic=0.8, roughness=0.35)
+rail_mat = material("Rail", (0.28, 0.33, 0.40), metallic=0.85, roughness=0.3)
+bin_mat = material("Bin", (0.82, 0.58, 0.08), metallic=0.2, roughness=0.45)
+gate_mat = material("Gate", (0.88, 0.26, 0.18), roughness=0.4)
+tool_mat = material("Tool", (0.95, 0.45, 0.10), metallic=0.4, roughness=0.3)
+carriage_mat = material("Carriage", (0.90, 0.35, 0.10), metallic=0.6, roughness=0.3)
+part_mat = material("Part", (0.95, 0.72, 0.10), metallic=0.2, roughness=0.35)
+sensor_mat = material("Sensor", (0.16, 0.20, 0.25), roughness=0.5)
+tank_mat = tank_material("Tank", (0.78, 0.84, 0.90))
+rim_mat = material("Rim", (0.55, 0.60, 0.66), metallic=0.9, roughness=0.25)
+liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.15, emission=0.5)
+nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.9, roughness=0.25)
+stream_mat = material("Stream", (0.35, 0.78, 0.98), emission=2.5)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
 
-# Floor.
-bpy.ops.mesh.primitive_plane_add(size=12, location=(2.0, 1.1, 0.0))
+# Grid floor.
+bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
 floor = bpy.context.object
 floor.name = "Floor"
 floor.data.materials.append(floor_mat)
@@ -77,26 +93,32 @@ floor.data.materials.append(floor_mat)
 box("Belt", (2.0, 1.0, 0.04), (2.0, 0.09, 0.02), belt_mat)
 add_cylinder("RollerL", (0.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
 add_cylinder("RollerR", (4.0, 1.0, 0.05), (0.08, 0.12, 0.08), roller_mat, (1.5708, 0, 0))
+for i, x in enumerate((1.0, 2.0, 3.0)):
+    add_cylinder("RollerM%d" % i, (x, 1.0, 0.05), (0.055, 0.10, 0.055), roller_mat, (1.5708, 0, 0))
 
-# Left lane: turns +Y at the END of the belt (x = 4), reaching station B.
+# Conveyor side rails.
+box("RailFront", (2.0, 1.13, 0.10), (2.0, 0.02, 0.02), rail_mat)
+box("RailBack", (2.0, 0.87, 0.10), (2.0, 0.02, 0.02), rail_mat)
+
+# Left lane and straight approach lane.
 box("Lane", (4.0, 1.7, 0.04), (0.09, 0.7, 0.02), lane_mat)
-
-# Straight approach lane: continues +X past the belt end to station A.
 box("LaneStraight", (4.3, 1.0, 0.04), (0.3, 0.09, 0.02), lane_mat)
 
-# End gate (pivots when diverting).
+# End gate.
 box("Gate", (4.0, 1.12, 0.08), (0.035, 0.16, 0.03), gate_mat)
 
-# Gantry frame.
-box("FrameBeam", (1.5, 0.9, 1.0), (1.5, 0.05, 0.05), frame_mat)
-box("FramePostA", (0.0, 0.9, 0.5), (0.05, 0.05, 0.5), frame_mat)
-box("FramePostB", (3.0, 0.9, 0.5), (0.05, 0.05, 0.5), frame_mat)
+# Gantry: four posts, two X-rails and a moving carriage.
+for px, py in ((0.0, 0.15), (3.0, 0.15), (0.0, 1.85), (3.0, 1.85)):
+    box("Post_%.1f_%.1f" % (px, py), (px, py, 0.58), (0.06, 0.06, 0.58), frame_mat)
+box("RailY0", (1.5, 0.15, 1.15), (1.5, 0.04, 0.04), rail_mat)
+box("RailY2", (1.5, 1.85, 1.15), (1.5, 0.04, 0.04), rail_mat)
+box("Carriage", (0.0, 0.0, 1.08), (0.22, 0.14, 0.07), carriage_mat)
 
 # Two bins: DOWN at y = 0.2, UP at y = 1.9.
 box("BinDown", (2.6, 0.2, 0.10), (0.16, 0.16, 0.10), bin_mat)
 box("BinUp", (2.6, 1.9, 0.10), (0.16, 0.16, 0.10), bin_mat)
 
-# Parts waiting in the bins (always visible; the live "Part" is the one in flight).
+# Parts waiting in the bins.
 box("PartDown", (2.6, 0.2, 0.18), (0.05, 0.05, 0.05), part_mat)
 box("PartUp", (2.6, 1.9, 0.18), (0.05, 0.05, 0.05), part_mat)
 
@@ -108,7 +130,7 @@ tool.data.materials.append(tool_mat)
 box("JawA", (0.0, 0.06, 0.42), (0.03, 0.03, 0.08), frame_mat)
 box("JawB", (0.0, -0.06, 0.42), (0.03, 0.03, 0.08), frame_mat)
 
-# The part (hidden off-screen until picked).
+# The part in flight (hidden until picked).
 box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_mat)
 
 # Sensors.
@@ -116,11 +138,13 @@ box("SensorIn", (0.3, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorOut", (3.7, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorDivert", (4.0, 2.3, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 
-# Two fill stations: A at the straight end, B at the left end.
+# Two fill stations.
 box("TankA", (4.6, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
 box("LiquidA", (4.6, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+add_cylinder("RimA", (4.6, 1.0, 0.61), (0.17, 0.17, 0.012), rim_mat)
 box("TankB", (4.0, 2.4, 0.30), (0.17, 0.17, 0.30), tank_mat)
 box("LiquidB", (4.0, 2.4, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+add_cylinder("RimB", (4.0, 2.4, 0.61), (0.17, 0.17, 0.012), rim_mat)
 
 # Nozzles and fill streams above each tank.
 add_cylinder("NozzleA", (4.6, 1.0, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
@@ -130,32 +154,46 @@ add_cylinder("StreamB", (4.0, 2.4, 0.67), (0.015, 0.015, 0.005), stream_mat)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")
-text.body = "IDLE   placed 0   straight 0   diverted 0"
+text.body = "IDLE   done A0 B0"
 text.align_x = "CENTER"
 text_obj = bpy.data.objects.new("StatusText", text)
-text_obj.location = (2.0, 2.6, 2.0)
+text_obj.location = (2.0, 3.0, 2.0)
 text_obj.scale = (0.14, 0.14, 0.14)
 text_obj.data.materials.append(text_mat)
 bpy.context.collection.objects.link(text_obj)
 
-# Camera and light.
+# Camera.
 cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-cam.location = (2.0, -4.2, 3.0)
+cam.location = (2.2, -5.0, 3.6)
 bpy.context.collection.objects.link(cam)
-look = Vector((2.0, 1.2, 0.4)) - cam.location
+look = Vector((2.0, 1.1, 0.5)) - cam.location
 cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
 bpy.context.scene.camera = cam
 
+# Lighting: key sun, soft area fill, and a cool rim light.
 sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", type="SUN"))
-sun.data.energy = 4.5
-sun.location = (2, -6, 9)
+sun.data.energy = 3.5
+sun.location = (2, -7, 10)
 bpy.context.collection.objects.link(sun)
 
+bpy.ops.object.light_add(type="AREA", location=(2.0, 1.1, 6.0))
+area = bpy.context.object
+area.name = "FillArea"
+area.data.energy = 220.0
+area.data.size = 8.0
+
+bpy.ops.object.light_add(type="POINT", location=(7.0, -3.0, 2.0))
+rim = bpy.context.object
+rim.name = "RimPoint"
+rim.data.energy = 400.0
+rim.data.color = (0.55, 0.70, 1.0)
+
+# World: dark blue-grey backdrop.
 world = bpy.context.scene.world
 if world and world.use_nodes:
     bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs["Color"].default_value = (0.05, 0.06, 0.08, 1.0)
+        bg.inputs["Color"].default_value = (0.045, 0.055, 0.075, 1.0)
 
 bpy.ops.wm.save_as_mainfile(filepath=OUT)
 print("Saved:", OUT)

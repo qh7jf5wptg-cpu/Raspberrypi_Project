@@ -105,6 +105,10 @@ def apply_twin():
     if tool:
         tool.location = (state["x"] * 0.01, state["y"] * 0.01, state["z"] * 0.01)
 
+    carriage = _obj("Carriage")
+    if carriage:
+        carriage.location = (tool.location[0], tool.location[1], 1.08)
+
     gap = 0.05 + 0.05 * state["grip"]
     if jaw_a:
         jaw_a.location = (tool.location[0], tool.location[1] + gap, tool.location[2] - 0.16)
