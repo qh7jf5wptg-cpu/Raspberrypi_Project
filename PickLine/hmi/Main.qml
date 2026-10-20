@@ -543,16 +543,11 @@ ApplicationWindow {
                             background: Rectangle {
                                 implicitHeight: 40
                                 radius: 4
-                                border.color: "#b8c4d2"
-                                color: !pauseBtn.enabled ? "#1a2233"
-                                       : tag("paused", "0") === "1" ? "#f1c40f"
-                                       : "#d0d7e0"
+                                color: !pauseBtn.enabled ? "#9aa5b1" : "#2a3448"
                             }
                             contentItem: Text {
                                 text: pauseBtn.text
-                                color: !pauseBtn.enabled ? "#6b7688"
-                                       : tag("paused", "0") === "1" ? "#1a1a1a"
-                                       : "#172033"
+                                color: "#ffffff"
                                 font.pixelSize: 14
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
