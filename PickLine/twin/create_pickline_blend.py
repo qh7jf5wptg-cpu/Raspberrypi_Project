@@ -182,9 +182,10 @@ bpy.context.collection.objects.link(text_obj)
 
 # Camera.
 cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-cam.location = (2.2, -5.0, 3.6)
+cam.location = (2.6, -8.5, 4.5)
+cam.data.lens = 28.0
 bpy.context.collection.objects.link(cam)
-look = Vector((2.0, 1.1, 0.5)) - cam.location
+look = Vector((2.5, 0.8, 0.5)) - cam.location
 cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
 bpy.context.scene.camera = cam
 
