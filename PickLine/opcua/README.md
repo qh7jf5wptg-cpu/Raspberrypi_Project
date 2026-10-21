@@ -58,3 +58,13 @@ Settings publish to MQTT when written. Command nodes are edge-triggered: write
 ```sh
 python3 opcua/opcua_client_test.py
 ```
+
+For a fuller browse/read/write without a GUI client (works on macOS and
+Raspberry Pi, which have no UaExpert build):
+
+```sh
+python3 opcua/opcua_browse.py                    # dump the whole tree + values
+python3 opcua/opcua_browse.py --read Status/state
+python3 opcua/opcua_browse.py --write Settings/gap 2.5
+python3 opcua/opcua_browse.py --write-bool Commands/take_a true
+```
