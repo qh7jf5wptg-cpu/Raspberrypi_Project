@@ -262,8 +262,8 @@ ApplicationWindow {
                         var bottomY = ly + 2 * lsp + lr + 7
                         ctx.fillStyle = "#1a2233"
                         ctx.fillRect(lx - 24, topY, 48, bottomY - topY)
-                        var redOn = num("estop", 0) > 0 || tag("state", "") === "FAULT"
-                        var yellowOn = num("paused", 0) > 0
+                        var redOn = (num("estop", 0) > 0 || tag("state", "") === "FAULT") && blinkOn
+                        var yellowOn = num("paused", 0) > 0 && blinkOn
                         var greenOn = machineRunning() && blinkOn
                         var blueOn = tag("fill/a/state", "") === "FULL"
                                      && tag("fill/b/state", "") === "FULL" && blinkOn

@@ -363,8 +363,8 @@ def apply_twin():
                and state.get("state", "IDLE") in active_states
                and not state.get("paused", 0) and not state.get("estop", 0))
     blink = int(time.time() * 2) % 2 == 0
-    red_on = state.get("estop", 0) or state.get("state", "") == "FAULT"
-    yellow_on = state.get("paused", 0)
+    red_on = (state.get("estop", 0) or state.get("state", "") == "FAULT") and blink
+    yellow_on = state.get("paused", 0) and blink
     green_on = running and blink
     both_full = (state.get("fill/a/state", "") == "FULL"
                  and state.get("fill/b/state", "") == "FULL")
