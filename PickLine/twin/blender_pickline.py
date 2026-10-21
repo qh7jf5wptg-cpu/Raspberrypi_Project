@@ -70,21 +70,23 @@ def _set_light(name, on, color, strength=6.0):
     obj = _obj(name)
     if obj is None:
         return
-    # Keep the lens tinted when off, only dim it — like a real unlit signal lamp.
-    dim = (color[0] * 0.3, color[1] * 0.3, color[2] * 0.3, 1.0)
-    base = (*color, 1.0) if on else dim
-    obj.color = base
+    grey = (0.35, 0.38, 0.42, 1.0)
+    obj.color = (*color, 1.0) if on else grey
     if not obj.data.materials:
         return
     mat = obj.data.materials[0]
-    mat.diffuse_color = base
+    mat.diffuse_color = (*color, 1.0) if on else grey
     if not mat.use_nodes:
         return
     for node in mat.node_tree.nodes:
         if node.type == "BSDF_PRINCIPLED":
-            node.inputs["Base Color"].default_value = base
-            node.inputs["Emission Color"].default_value = (*color, 1.0)
-            node.inputs["Emission Strength"].default_value = strength if on else 0.0
+            if on:
+                node.inputs["Base Color"].default_value = (*color, 1.0)
+                node.inputs["Emission Color"].default_value = (*color, 1.0)
+                node.inputs["Emission Strength"].default_value = strength
+            else:
+                node.inputs["Base Color"].default_value = grey
+                node.inputs["Emission Strength"].default_value = 0.0
             break
 
 
