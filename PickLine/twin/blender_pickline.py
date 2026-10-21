@@ -70,7 +70,7 @@ def _set_light(name, on, color, strength=6.0):
     obj = _obj(name)
     if obj is None:
         return
-    grey = (0.35, 0.38, 0.42, 1.0)
+    grey = (0.40, 0.43, 0.47, 1.0)
     obj.color = (*color, 1.0) if on else grey
     if not obj.data.materials:
         return

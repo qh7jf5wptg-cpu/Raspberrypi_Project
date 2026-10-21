@@ -90,10 +90,11 @@ liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.15, emission=0.5
 nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.9, roughness=0.25)
 stream_mat = material("Stream", (0.35, 0.78, 0.98), emission=2.5)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
-light_red = material("LightRed", (1.0, 0.05, 0.05), roughness=0.3, emission=0.0)
-light_yellow = material("LightYellow", (1.0, 0.9, 0.1), roughness=0.3, emission=0.0)
-light_green = material("LightGreen", (0.05, 1.0, 0.1), roughness=0.3, emission=0.0)
-light_blue = material("LightBlue", (0.1, 0.35, 1.0), roughness=0.3, emission=0.0)
+lens_grey = (0.40, 0.43, 0.47)
+light_red = material("LightRed", lens_grey, roughness=0.3, emission=0.0)
+light_yellow = material("LightYellow", lens_grey, roughness=0.3, emission=0.0)
+light_green = material("LightGreen", lens_grey, roughness=0.3, emission=0.0)
+light_blue = material("LightBlue", lens_grey, roughness=0.3, emission=0.0)
 
 # Grid floor.
 bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
