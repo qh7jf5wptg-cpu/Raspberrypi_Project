@@ -66,7 +66,7 @@ def _set_color(obj, color):
                     break
 
 
-def _set_light(name, on, color, strength=6.0):
+def _set_light(name, on, color, strength=12.0):
     obj = _obj(name)
     if obj is None:
         return

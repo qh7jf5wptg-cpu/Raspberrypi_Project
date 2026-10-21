@@ -95,6 +95,7 @@ light_red = material("LightRed", lens_grey, roughness=0.3, emission=0.0)
 light_yellow = material("LightYellow", lens_grey, roughness=0.3, emission=0.0)
 light_green = material("LightGreen", lens_grey, roughness=0.3, emission=0.0)
 light_blue = material("LightBlue", lens_grey, roughness=0.3, emission=0.0)
+tower_pole_mat = material("TowerPole", (0.10, 0.11, 0.13), metallic=0.7, roughness=0.35)
 
 # Grid floor.
 bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
@@ -165,11 +166,12 @@ add_cylinder("StreamA", (4.6, 1.0, 0.67), (0.015, 0.015, 0.005), stream_mat)
 add_cylinder("NozzleB", (4.0, 2.4, 0.82), (0.03, 0.03, 0.06), nozzle_mat)
 add_cylinder("StreamB", (4.0, 2.4, 0.67), (0.015, 0.015, 0.005), stream_mat)
 
-# Industrial signal tower: red, yellow, green, blue (top to bottom).
-add_cylinder("TowerBlue", (0.4, -0.4, 0.30), (0.055, 0.055, 0.08), light_blue)
-add_cylinder("TowerGreen", (0.4, -0.4, 0.46), (0.055, 0.055, 0.08), light_green)
-add_cylinder("TowerYellow", (0.4, -0.4, 0.62), (0.055, 0.055, 0.08), light_yellow)
-add_cylinder("TowerRed", (0.4, -0.4, 0.78), (0.055, 0.055, 0.08), light_red)
+# Industrial signal tower: pole + red, yellow, green, blue (top to bottom).
+add_cylinder("TowerPole", (0.4, -0.4, 0.56), (0.018, 0.018, 0.56), tower_pole_mat)
+add_cylinder("TowerBlue", (0.4, -0.4, 0.24), (0.14, 0.14, 0.11), light_blue)
+add_cylinder("TowerGreen", (0.4, -0.4, 0.48), (0.14, 0.14, 0.11), light_green)
+add_cylinder("TowerYellow", (0.4, -0.4, 0.72), (0.14, 0.14, 0.11), light_yellow)
+add_cylinder("TowerRed", (0.4, -0.4, 0.96), (0.14, 0.14, 0.11), light_red)
 
 # Status text.
 text = bpy.data.curves.new("StatusText", type="FONT")
