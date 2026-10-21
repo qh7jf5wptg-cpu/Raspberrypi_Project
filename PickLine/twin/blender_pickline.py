@@ -66,7 +66,7 @@ def _set_color(obj, color):
                     break
 
 
-def _set_light(name, on, color, strength=12.0):
+def _set_light(name, on, color, strength=10.0):
     obj = _obj(name)
     if obj is None:
         return
@@ -81,7 +81,8 @@ def _set_light(name, on, color, strength=12.0):
     for node in mat.node_tree.nodes:
         if node.type == "BSDF_PRINCIPLED":
             if on:
-                node.inputs["Base Color"].default_value = (*color, 1.0)
+                node.inputs["Base Color"].default_value = (
+                    color[0] * 0.12, color[1] * 0.12, color[2] * 0.12, 1.0)
                 node.inputs["Emission Color"].default_value = (*color, 1.0)
                 node.inputs["Emission Strength"].default_value = strength
             else:
@@ -369,10 +370,10 @@ def apply_twin():
     both_full = (state.get("fill/a/state", "") == "FULL"
                  and state.get("fill/b/state", "") == "FULL")
     blue_on = both_full and blink
-    _set_light("TowerRed", red_on, (1.0, 0.05, 0.05))
-    _set_light("TowerYellow", yellow_on, (1.0, 0.9, 0.1))
+    _set_light("TowerRed", red_on, (1.0, 0.02, 0.02))
+    _set_light("TowerYellow", yellow_on, (1.0, 0.85, 0.05))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
-    _set_light("TowerBlue", blue_on, (0.1, 0.35, 1.0))
+    _set_light("TowerBlue", blue_on, (0.05, 0.25, 1.0))
     _redraw()
 
     sync_settings()
