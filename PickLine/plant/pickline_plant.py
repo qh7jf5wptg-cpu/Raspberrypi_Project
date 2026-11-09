@@ -17,10 +17,16 @@ Run:
 """
 import math
 import os
+import sys
 import threading
 import time
 
 import paho.mqtt.client as mqtt
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from robot.kinematics import SixAxisRobot
+from robot import geometry as G
 
 BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = int(os.environ.get("MQTT_PORT", "1883"))
@@ -56,6 +62,9 @@ SENSOR_IN_X = 30.0
 SENSOR_OUT_X = 370.0
 SENSOR_DIVERT_Y = 230.0
 SENSOR_TOL = 6.0
+
+ROBOT_JOINT_SPEED = 90.0     # deg/s
+ROBOT_GRIP_TIME = 0.35       # seconds to open or close the gripper
 
 lock = threading.Lock()
 
@@ -93,6 +102,26 @@ sensor_divert = 0
 
 last_published = {}
 
+robot_model = SixAxisRobot()
+robots = {
+    "a": {
+        "base": G.ROBOT_A_BASE, "pick": G.PICK_A,
+        "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
+        "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_A,
+        "gripper": 1.0, "gripper_target": 1.0,
+        "holding": False, "busy": 0,
+    },
+    "b": {
+        "base": G.ROBOT_B_BASE, "pick": G.PICK_B,
+        "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
+        "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_B,
+        "gripper": 1.0, "gripper_target": 1.0,
+        "holding": False, "busy": 0,
+    },
+}
+outfeed = []            # world x positions of containers riding the outfeed
+outfeed_count = 0
+
 
 def clamp(value, low, high):
     return max(low, min(high, value))
@@ -100,6 +129,29 @@ def clamp(value, low, high):
 
 def near(xy, ref, tol):
     return math.hypot(xy[0] - ref[0], xy[1] - ref[1]) <= tol
+
+
+def near3(point, ref, tol):
+    return (math.hypot(point[0] - ref[0], point[1] - ref[1]) <= tol
+            and abs(point[2] - ref[2]) <= tol)
+
+
+def world_to_local(base, world):
+    return (world[0] - base[0], world[1] - base[1], world[2] - base[2])
+
+
+def local_to_world(base, local):
+    return (local[0] + base[0], local[1] + base[1], local[2] + base[2])
+
+
+def clear_station(key):
+    st = fill[key]
+    st["state"] = "EMPTY"
+    st["level"] = 0.0
+    st["filled"] = 0
+    st["pouring"] = 0
+    st["pour_timer"] = 0.0
+    st["alarm"] = ""
 
 
 def reset_plant():
@@ -133,6 +185,7 @@ def clear_belt():
 
 def on_connect(client, *_args):
     client.subscribe("pickline/target/#")
+    client.subscribe("pickline/robot/+/target/#")
     client.subscribe("pickline/plant/reset")
     client.subscribe("pickline/fill/a/take")
     client.subscribe("pickline/fill/b/take")
@@ -191,6 +244,21 @@ def on_message(_client, _userdata, msg):
                 jam = payload.lower() in ("1", "true", "on", "jam")
             elif msg.topic == "pickline/fault/clear":
                 jam = False
+            elif msg.topic.startswith("pickline/robot/") and "/target/" in msg.topic:
+                parts = msg.topic.split("/")
+                key = parts[2]
+                axis = parts[4]
+                rb = robots.get(key)
+                if rb is not None:
+                    if axis == "grip":
+                        rb["gripper_target"] = (
+                            1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
+                        )
+                    elif axis in ("x", "y", "z"):
+                        idx = {"x": 0, "y": 1, "z": 2}[axis]
+                        tcp = list(rb["tcp_target"])
+                        tcp[idx] = float(payload)
+                        rb["tcp_target"] = tuple(tcp)
         except ValueError:
             pass
 
@@ -216,7 +284,7 @@ def enter_station(key):
 
 def step(dt):
     global grip, part_held, placed, belt, diverter, part_lane, part_x, part_y
-    global total, sensor_in, sensor_out, sensor_divert
+    global total, sensor_in, sensor_out, sensor_divert, outfeed_count
 
     with lock:
         for i in range(3):
@@ -310,6 +378,58 @@ def step(dt):
         sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
         sensor_divert = 1 if (part_lane == "left" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
 
+        # Six-axis tending robots: move joints toward the TCP target, operate
+        # the gripper, and unload full containers onto the outfeed conveyor.
+        for key, rb in robots.items():
+            local_target = world_to_local(rb["base"], rb["tcp_target"])
+            rb["joint_targets"] = robot_model.inverse(local_target)
+
+            busy = 0
+            max_step = math.radians(ROBOT_JOINT_SPEED) * dt
+            for i in range(6):
+                error = rb["joint_targets"][i] - rb["joints"][i]
+                if abs(error) <= max_step:
+                    rb["joints"][i] = rb["joint_targets"][i]
+                else:
+                    rb["joints"][i] += math.copysign(max_step, error)
+                    busy = 1
+            rb["busy"] = busy
+
+            local = robot_model.forward(rb["joints"])
+            rb["tcp"] = local_to_world(rb["base"], local)
+
+            if rb["gripper"] < rb["gripper_target"]:
+                rb["gripper"] = min(rb["gripper_target"], rb["gripper"] + dt / ROBOT_GRIP_TIME)
+            elif rb["gripper"] > rb["gripper_target"]:
+                rb["gripper"] = max(rb["gripper_target"], rb["gripper"] - dt / ROBOT_GRIP_TIME)
+
+            # Close the gripper over a full station to take the container.
+            if rb["gripper"] <= 0.05 and not rb["holding"]:
+                if (near3(rb["tcp"], rb["pick"], G.GRIP_TOL)
+                        and fill[key]["state"] in ("FULL", "FAULT")):
+                    clear_station(key)
+                    rb["holding"] = True
+
+            # Open the gripper over the shared drop point to place the container.
+            if rb["gripper"] >= 0.95 and rb["holding"]:
+                if near3(rb["tcp"], G.OUTFEED_DROP, G.GRIP_TOL):
+                    clear = all(
+                        abs(x - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for x in outfeed
+                    )
+                    if clear:
+                        rb["holding"] = False
+                        outfeed.append(G.OUTFEED_DROP[0])
+
+        # Outfeed conveyor: advance placed containers toward the exit.
+        advanced = []
+        for x in outfeed:
+            nx = x + G.OUTFEED_SPEED * dt
+            if nx >= G.OUTFEED_EXIT_X:
+                outfeed_count += 1
+            else:
+                advanced.append(nx)
+        outfeed[:] = advanced
+
 
 def snapshot():
     with lock:
@@ -357,6 +477,25 @@ def snapshot():
             values["pickline/fill/%s/filled" % key] = str(st["filled"])
             values["pickline/fill/%s/pouring" % key] = "1" if st["pouring"] else "0"
             values["pickline/fill/%s/alarm" % key] = st["alarm"]
+
+        for key, rb in robots.items():
+            for i, joint in enumerate(rb["joints"]):
+                values["pickline/robot/%s/joint/%d" % (key, i + 1)] = (
+                    "%.2f" % math.degrees(joint)
+                )
+            values["pickline/robot/%s/tcp/x" % key] = "%.2f" % rb["tcp"][0]
+            values["pickline/robot/%s/tcp/y" % key] = "%.2f" % rb["tcp"][1]
+            values["pickline/robot/%s/tcp/z" % key] = "%.2f" % rb["tcp"][2]
+            values["pickline/robot/%s/gripper" % key] = "%.2f" % rb["gripper"]
+            values["pickline/robot/%s/holding" % key] = "1" if rb["holding"] else "0"
+            values["pickline/robot/%s/busy" % key] = str(rb["busy"])
+
+        infeed_clear = all(
+            abs(x - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for x in outfeed
+        )
+        values["pickline/outfeed/count"] = str(outfeed_count)
+        values["pickline/outfeed/queued"] = str(len(outfeed))
+        values["pickline/outfeed/infeed_clear"] = "1" if infeed_clear else "0"
         return values
 
 

@@ -24,10 +24,15 @@ Commands:
 """
 import math
 import os
+import sys
 import threading
 import time
 
 import paho.mqtt.client as mqtt
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from robot import geometry as G
 
 BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = int(os.environ.get("MQTT_PORT", "1883"))
@@ -85,6 +90,13 @@ part_exited_at = 0.0
 
 last = {}
 last_resend = 0.0
+
+robot = {
+    "a": {"state": "IDLE", "tcp": (0.0, 0.0, 0.0), "holding": 0},
+    "b": {"state": "IDLE", "tcp": (0.0, 0.0, 0.0), "holding": 0},
+}
+place_owner = None       # 'a' or 'b' currently placing on the outfeed, else None
+infeed_clear = 1
 
 
 def current_pick():
@@ -209,6 +221,97 @@ def hold_position():
     client.publish("pickline/target/z", "%.1f" % tags["z"], retain=False)
 
 
+def robot_poses(key):
+    pick = G.PICK_A if key == "a" else G.PICK_B
+    lift = (pick[0], pick[1], pick[2] + 80.0)
+    pre = (G.OUTFEED_DROP[0], G.OUTFEED_DROP[1], G.OUTFEED_DROP[2] + 80.0)
+    return {
+        "pick": pick,
+        "lift": lift,
+        "pre_place": pre,
+        "place": G.OUTFEED_DROP,
+        "clear": pre,
+        "park": lift,
+    }
+
+
+def send_robot_target(key, pos):
+    client.publish("pickline/robot/%s/target/x" % key, "%.1f" % pos[0], retain=False)
+    client.publish("pickline/robot/%s/target/y" % key, "%.1f" % pos[1], retain=False)
+    client.publish("pickline/robot/%s/target/z" % key, "%.1f" % pos[2], retain=False)
+
+
+def send_robot_grip(key, value):
+    client.publish("pickline/robot/%s/target/grip" % key, str(value), retain=False)
+
+
+def robot_at(key, pos):
+    tx, ty, tz = robot[key]["tcp"]
+    return (math.hypot(tx - pos[0], ty - pos[1]) <= G.GRIP_TOL
+            and abs(tz - pos[2]) <= G.GRIP_TOL)
+
+
+def tick_robots(_now):
+    global place_owner
+    with lock:
+        for key in ("a", "b"):
+            rb = robot[key]
+            poses = robot_poses(key)
+            state = rb["state"]
+
+            if state == "IDLE":
+                if station[key] in ("FULL", "FAULT"):
+                    rb["state"] = "GO_PICK"
+                    send_robot_grip(key, 1)
+                    send_robot_target(key, poses["pick"])
+
+            elif state == "GO_PICK":
+                if robot_at(key, poses["pick"]):
+                    rb["state"] = "GRASP"
+                    send_robot_grip(key, 0)
+
+            elif state == "GRASP":
+                if rb["holding"]:
+                    rb["state"] = "GO_LIFT"
+                    send_robot_target(key, poses["lift"])
+                elif station[key] not in ("FULL", "FAULT"):
+                    # Station was cleared another way; abort safely.
+                    rb["state"] = "IDLE"
+                    send_robot_grip(key, 1)
+                    send_robot_target(key, poses["park"])
+
+            elif state == "GO_LIFT":
+                if robot_at(key, poses["lift"]):
+                    rb["state"] = "GO_PRE_PLACE"
+                    send_robot_target(key, poses["pre_place"])
+
+            elif state == "GO_PRE_PLACE":
+                if robot_at(key, poses["pre_place"]):
+                    rb["state"] = "WAIT_SLOT"
+
+            elif state == "WAIT_SLOT":
+                if place_owner is None and infeed_clear:
+                    place_owner = key
+                    rb["state"] = "GO_PLACE"
+                    send_robot_target(key, poses["place"])
+
+            elif state == "GO_PLACE":
+                if robot_at(key, poses["place"]):
+                    rb["state"] = "RELEASE"
+                    send_robot_grip(key, 1)
+
+            elif state == "RELEASE":
+                if not rb["holding"]:
+                    rb["state"] = "GO_CLEAR"
+                    send_robot_target(key, poses["clear"])
+
+            elif state == "GO_CLEAR":
+                if robot_at(key, poses["clear"]):
+                    place_owner = None
+                    rb["state"] = "IDLE"
+                    send_robot_target(key, poses["park"])
+
+
 def start_auto():
     global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag, jam_flag
     started = True
@@ -238,12 +341,15 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/fill/b/pickups")
     cli.subscribe("pickline/jam")
     cli.subscribe("pickline/part_on_line")
+    cli.subscribe("pickline/robot/+/tcp/+")
+    cli.subscribe("pickline/robot/+/holding")
+    cli.subscribe("pickline/outfeed/infeed_clear")
     cli.subscribe("pickline/command/#")
 
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
-    global paused, estop, part_on_line
+    global paused, estop, part_on_line, infeed_clear
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -272,6 +378,20 @@ def on_message(_cli, _userdata, msg):
                     jam_flag = int(float(payload or 0))
                 elif msg.topic == "pickline/part_on_line":
                     part_on_line = int(float(payload or 0))
+                elif msg.topic.startswith("pickline/robot/") and "/tcp/" in msg.topic:
+                    key = msg.topic.split("/")[2]
+                    axis = msg.topic.split("/")[4]
+                    if key in robot and axis in ("x", "y", "z"):
+                        idx = {"x": 0, "y": 1, "z": 2}[axis]
+                        tcp = list(robot[key]["tcp"])
+                        tcp[idx] = float(payload)
+                        robot[key]["tcp"] = tuple(tcp)
+                elif msg.topic.startswith("pickline/robot/") and msg.topic.endswith("/holding"):
+                    key = msg.topic.split("/")[2]
+                    if key in robot:
+                        robot[key]["holding"] = int(float(payload or 0))
+                elif msg.topic == "pickline/outfeed/infeed_clear":
+                    infeed_clear = int(float(payload or 0))
             except ValueError:
                 pass
 
@@ -407,6 +527,9 @@ def publish_status():
         "pickline/paused": "1" if paused else "0",
         "pickline/estop": "1" if estop else "0",
         "pickline/alarm": alarm,
+        "pickline/robot/a/task": robot["a"]["state"],
+        "pickline/robot/b/task": robot["b"]["state"],
+        "pickline/outfeed/owner": place_owner or "",
     }
     for topic, payload in values.items():
         if last.get(topic) != payload:
@@ -433,6 +556,7 @@ def main():
         try:
             now = time.monotonic()
             tick(now)
+            tick_robots(now)
             publish_status()
             if now - last_alive >= 1.0:
                 client.publish("pickline/plc/alive", "%.0f" % time.time(), retain=True)
