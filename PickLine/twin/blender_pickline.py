@@ -411,6 +411,11 @@ def apply_twin():
         if roller and state["belt"] > 0.5:
             roller.rotation_euler[0] += 0.02 * state["speed"] / 90.0
 
+    for name in ("OutfeedRollerL", "OutfeedRollerR"):
+        roller = _obj(name)
+        if roller:
+            roller.rotation_euler[0] += 0.02  # outfeed runs continuously
+
     _set_color(_obj("SensorIn"), (0.2, 0.9, 0.35, 1.0) if state["sensor_in"] else (0.18, 0.22, 0.26, 1.0))
     _set_color(_obj("SensorOut"), (0.2, 0.9, 0.35, 1.0) if state["sensor_out"] else (0.18, 0.22, 0.26, 1.0))
     _set_color(_obj("SensorDivert"), (0.2, 0.9, 0.35, 1.0) if state["sensor_divert"] else (0.18, 0.22, 0.26, 1.0))

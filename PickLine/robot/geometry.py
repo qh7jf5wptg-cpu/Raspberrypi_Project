@@ -12,6 +12,6 @@ OUTFEED_START_X = 420.0
 OUTFEED_DROP = (430.0, OUTFEED_Y, 30.0)   # single shared place point
 OUTFEED_EXIT_X = 650.0
 OUTFEED_PITCH = 120.0             # minimum spacing between placed containers
-OUTFEED_SPEED = 120.0             # mm/s
+OUTFEED_SPEED = 60.0              # mm/s (slower so containers stay visible)
 
 GRIP_TOL = 18.0                   # mm, "close enough" to a pick/place point
