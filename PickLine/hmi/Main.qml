@@ -289,17 +289,17 @@ ApplicationWindow {
                             ctx.fillText(label, X(bx), Y(by) - 12 * s)
                         }
                         drawRobot("a", 460, 135, "ROBOT A")
-                        drawRobot("b", 400, 205, "ROBOT B")
+                        drawRobot("b", 430, 205, "ROBOT B")
 
                         // Shared outfeed conveyor with placed containers.
                         ctx.fillStyle = "#e9edf3"
-                        ctx.fillRect(X(300) - 6, Y(170) - 10 * s, 356 * s, 20 * s)
+                        ctx.fillRect(X(420) - 6, Y(170) - 10 * s, 236 * s, 20 * s)
                         ctx.strokeStyle = "#9aa7b8"
                         ctx.lineWidth = 1.5
-                        ctx.strokeRect(X(300) - 6, Y(170) - 10 * s, 356 * s, 20 * s)
+                        ctx.strokeRect(X(420) - 6, Y(170) - 10 * s, 236 * s, 20 * s)
                         ctx.fillStyle = "#8a97a8"
                         ctx.font = "11px sans-serif"
-                        ctx.fillText("OUTFEED", X(475), Y(170) + 24 * s)
+                        ctx.fillText("OUTFEED", X(535), Y(170) + 24 * s)
 
                         var positions = tag("outfeed/positions", "")
                         if (positions.length > 0) {

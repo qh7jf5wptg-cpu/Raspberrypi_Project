@@ -79,6 +79,9 @@ side_mode = "alternate"
 side_alt = False
 route_mode = "auto"
 alternate_flag = False
+fill_target = "a"       # auto mode fills this station to completion first
+fill_counts = {"a": 0, "b": 0}
+fill_target_seen = 0
 decision = "STRAIGHT"
 alarm = ""
 step_idx = 0
@@ -157,22 +160,29 @@ def apply_diverter(value):
 
 
 def decide_route():
-    global alternate_flag
+    global alternate_flag, fill_target, fill_target_seen
     a_free = station["a"] not in ("FULL", "FAULT")
     b_free = station["b"] not in ("FULL", "FAULT")
     if route_mode == "straight":
         apply_diverter(False)
     elif route_mode == "left":
         apply_diverter(True)
-    elif a_free and b_free:
-        # Auto and alternate fill the two stations one by one so the faster
-        # station (with a robot clearing it) cannot starve the slower one.
-        alternate_flag = not alternate_flag
-        apply_diverter(not alternate_flag)  # A first, then B, then A, ...
-    elif a_free:
-        apply_diverter(False)
-    elif b_free:
-        apply_diverter(True)
+    elif route_mode == "alternate":
+        if a_free and b_free:
+            alternate_flag = not alternate_flag
+            apply_diverter(not alternate_flag)  # A first, then B, then A, ...
+        elif a_free:
+            apply_diverter(False)
+        elif b_free:
+            apply_diverter(True)
+    else:
+        # Auto: fill one station to completion, then the other. We switch on
+        # the completed-fill counter (which never resets), so the fast station
+        # being cleared by its robot cannot starve the slower station.
+        if fill_counts[fill_target] > fill_target_seen:
+            fill_target = "b" if fill_target == "a" else "a"
+            fill_target_seen = fill_counts[fill_target]
+        apply_diverter(fill_target == "b")
     # else: neither free — handled by WAIT_STATION before the next pick.
 
 
@@ -302,9 +312,12 @@ def tick_robots(_now):
 
 def start_auto():
     global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag, jam_flag
+    global fill_target, fill_target_seen
     started = True
     alarm = ""
     alternate_flag = False
+    fill_target = "a"
+    fill_target_seen = fill_counts["a"]
     jam_flag = 0
     # Clear any part on the belt but keep fill stations and production counts.
     client.publish("pickline/clear_belt", "1", retain=False)
@@ -325,6 +338,8 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/exited")
     cli.subscribe("pickline/fill/a/state")
     cli.subscribe("pickline/fill/b/state")
+    cli.subscribe("pickline/fill/a/count")
+    cli.subscribe("pickline/fill/b/count")
     cli.subscribe("pickline/fill/a/pickups")
     cli.subscribe("pickline/fill/b/pickups")
     cli.subscribe("pickline/jam")
@@ -337,7 +352,7 @@ def on_connect(cli, *_args):
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
-    global paused, estop, part_on_line, infeed_clear
+    global paused, estop, part_on_line, infeed_clear, fill_target, fill_target_seen
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -358,6 +373,10 @@ def on_message(_cli, _userdata, msg):
                     station["a"] = payload
                 elif msg.topic == "pickline/fill/b/state":
                     station["b"] = payload
+                elif msg.topic == "pickline/fill/a/count":
+                    fill_counts["a"] = int(float(payload or 0))
+                elif msg.topic == "pickline/fill/b/count":
+                    fill_counts["b"] = int(float(payload or 0))
                 elif msg.topic == "pickline/fill/a/pickups":
                     pickups["a"] = int(float(payload or 0))
                 elif msg.topic == "pickline/fill/b/pickups":
@@ -402,6 +421,8 @@ def on_message(_cli, _userdata, msg):
                 alarm = ""
                 step_idx = 0
                 state = "IDLE"
+                fill_target = "a"
+                fill_target_seen = 0
                 estop = False
                 paused = False
                 client.publish("pickline/target/belt", "0", retain=False)
