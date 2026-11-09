@@ -224,13 +224,13 @@ def build_robot(prefix, base):
     box(prefix + "_Gripper", p4, (0.055, 0.055, 0.09), robot_body_mat)
 
 
-build_robot("RobotA", (4.6, 0.4, 0.0))
-build_robot("RobotB", (4.0, 3.1, 0.0))
+build_robot("RobotA", (4.6, 1.35, 0.0))
+build_robot("RobotB", (4.0, 2.05, 0.0))
 
-box("OutfeedBelt", (4.75, 3.6, 0.04), (1.75, 0.10, 0.02), belt_mat)
-add_cylinder("OutfeedRollerL", (3.0, 3.6, 0.05), (0.07, 0.10, 0.07),
+box("OutfeedBelt", (4.75, 1.7, 0.04), (1.75, 0.10, 0.02), belt_mat)
+add_cylinder("OutfeedRollerL", (3.0, 1.7, 0.05), (0.07, 0.10, 0.07),
              roller_mat, (1.5708, 0, 0))
-add_cylinder("OutfeedRollerR", (6.5, 3.6, 0.05), (0.07, 0.10, 0.07),
+add_cylinder("OutfeedRollerR", (6.5, 1.7, 0.05), (0.07, 0.10, 0.07),
              roller_mat, (1.5708, 0, 0))
 for i in range(6):
     box("OutfeedBox%d" % i, (100.0, 100.0, 100.0), (0.05, 0.05, 0.05), part_mat)

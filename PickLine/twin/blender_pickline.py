@@ -22,7 +22,7 @@ BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = 1883
 
 ROBOT_MODEL = SixAxisRobot()
-ROBOT_BASES = {"a": (4.6, 0.4, 0.0), "b": (4.0, 3.1, 0.0)}
+ROBOT_BASES = {"a": (4.6, 1.35, 0.0), "b": (4.0, 2.05, 0.0)}
 
 state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "part_x": -1.0, "part_y": -1.0, "belt": 0.0, "speed": 90.0,
@@ -369,7 +369,7 @@ def _update_outfeed():
         if box is None:
             continue
         if i < len(xs):
-            box.location = (xs[i] / 100.0, 3.6, 0.06)
+            box.location = (xs[i] / 100.0, 1.7, 0.06)
         else:
             box.location = (100.0, 100.0, 100.0)
 

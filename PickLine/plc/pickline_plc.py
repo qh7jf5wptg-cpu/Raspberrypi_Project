@@ -164,23 +164,11 @@ def decide_route():
         apply_diverter(False)
     elif route_mode == "left":
         apply_diverter(True)
-    elif route_mode == "alternate":
-        if a_free and b_free:
-            alternate_flag = not alternate_flag
-            apply_diverter(not alternate_flag)  # A first, then B, and so on
-        elif a_free:
-            apply_diverter(False)
-        elif b_free:
-            apply_diverter(True)
     elif a_free and b_free:
-        # Auto: prefer the faster station (fewer pickups); alternate on a tie.
-        if pickups["a"] < pickups["b"]:
-            apply_diverter(False)
-        elif pickups["b"] < pickups["a"]:
-            apply_diverter(True)
-        else:
-            alternate_flag = not alternate_flag
-            apply_diverter(alternate_flag)
+        # Auto and alternate fill the two stations one by one so the faster
+        # station (with a robot clearing it) cannot starve the slower one.
+        alternate_flag = not alternate_flag
+        apply_diverter(not alternate_flag)  # A first, then B, then A, ...
     elif a_free:
         apply_diverter(False)
     elif b_free:
@@ -507,11 +495,13 @@ def tick(now):
                                "1" if decision == "LEFT" else "0", retain=False)
             last_resend = now
 
-        timeout = WAIT_TIMEOUT if kind == "wait_exit" else STEP_TIMEOUT
-        if kind != "wait_station" and now - step_started > timeout:
+        # Move/grip steps have a hard timeout. WAIT_EXIT and WAIT_STATION wait
+        # legitimately: a full station is now cleared by a tending robot, so a
+        # container waiting at the belt end is not a jam.
+        if kind in ("move", "grip") and now - step_started > STEP_TIMEOUT:
             started = False
             state = "FAULT"
-            alarm = "BELT JAM" if kind == "wait_exit" else "Timeout in " + name
+            alarm = "Timeout in " + name
             client.publish("pickline/target/belt", "0", retain=False)
 
 

@@ -11,7 +11,7 @@ import math
 
 
 class SixAxisRobot:
-    def __init__(self, d1=150.0, a2=200.0, a3=180.0, d6=70.0):
+    def __init__(self, d1=70.0, a2=80.0, a3=70.0, d6=35.0):
         self.d1 = d1          # base to shoulder, mm
         self.a2 = a2          # upper arm
         self.a3 = a3          # forearm

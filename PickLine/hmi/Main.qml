@@ -252,7 +252,7 @@ ApplicationWindow {
                             var q1 = num("robot/" + key + "/joint/1", 0) * Math.PI / 180
                             var q2 = num("robot/" + key + "/joint/2", 0) * Math.PI / 180
                             var q3 = num("robot/" + key + "/joint/3", 0) * Math.PI / 180
-                            var a2 = 200, a3 = 180
+                            var a2 = 80, a3 = 70
                             var re = a2 * Math.cos(q2)
                             var rw = a2 * Math.cos(q2) + a3 * Math.cos(q2 + q3)
                             var ex = bx + re * Math.cos(q1)
@@ -288,18 +288,18 @@ ApplicationWindow {
                             ctx.textAlign = "center"
                             ctx.fillText(label, X(bx), Y(by) - 12 * s)
                         }
-                        drawRobot("a", 460, 40, "ROBOT A")
-                        drawRobot("b", 400, 310, "ROBOT B")
+                        drawRobot("a", 460, 135, "ROBOT A")
+                        drawRobot("b", 400, 205, "ROBOT B")
 
                         // Shared outfeed conveyor with placed containers.
                         ctx.fillStyle = "#e9edf3"
-                        ctx.fillRect(X(300) - 6, Y(360) - 10 * s, 356 * s, 20 * s)
+                        ctx.fillRect(X(300) - 6, Y(170) - 10 * s, 356 * s, 20 * s)
                         ctx.strokeStyle = "#9aa7b8"
                         ctx.lineWidth = 1.5
-                        ctx.strokeRect(X(300) - 6, Y(360) - 10 * s, 356 * s, 20 * s)
+                        ctx.strokeRect(X(300) - 6, Y(170) - 10 * s, 356 * s, 20 * s)
                         ctx.fillStyle = "#8a97a8"
                         ctx.font = "11px sans-serif"
-                        ctx.fillText("OUTFEED", X(475), Y(360) + 24 * s)
+                        ctx.fillText("OUTFEED", X(475), Y(170) + 24 * s)
 
                         var positions = tag("outfeed/positions", "")
                         if (positions.length > 0) {
@@ -308,7 +308,7 @@ ApplicationWindow {
                                 var px = Number(xs[i])
                                 if (isNaN(px)) continue
                                 ctx.fillStyle = "#f5c242"
-                                ctx.fillRect(X(px) - 4 * s, Y(360) - 6 * s, 8 * s, 12 * s)
+                                ctx.fillRect(X(px) - 4 * s, Y(170) - 6 * s, 8 * s, 12 * s)
                             }
                         }
 
