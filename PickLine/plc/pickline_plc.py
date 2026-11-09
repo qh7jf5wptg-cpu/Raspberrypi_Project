@@ -456,7 +456,7 @@ def on_message(_cli, _userdata, msg):
                 hold_position()
             elif msg.topic == "pickline/command/clear_belt":
                 client.publish("pickline/clear_belt", "1", retain=False)
-    except Exception as exc:
+    except BaseException as exc:
         print("PLC on_message error:", repr(exc), flush=True)
 
 
@@ -577,9 +577,24 @@ def main():
 
     period = 1.0 / LOOP_HZ
     last_alive = 0.0
+    disconnected_since = None
     while True:
         try:
             now = time.monotonic()
+            if not client.is_connected():
+                if disconnected_since is None:
+                    disconnected_since = now
+                elif now - disconnected_since > 10.0:
+                    print("PLC: broker unreachable >10s; forcing reconnect",
+                          flush=True)
+                    try:
+                        client.reconnect()
+                    except Exception:
+                        pass
+                    disconnected_since = now
+            else:
+                disconnected_since = None
+
             tick(now)
             tick_robots(now)
             publish_status()

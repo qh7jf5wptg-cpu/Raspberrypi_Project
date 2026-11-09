@@ -266,6 +266,8 @@ def on_message(_client, _userdata, msg):
                         rb["tcp_target"] = tuple(tcp)
         except ValueError:
             pass
+        except BaseException as exc:
+            print("Plant on_message error:", repr(exc), flush=True)
 
 
 def enter_station(key):
