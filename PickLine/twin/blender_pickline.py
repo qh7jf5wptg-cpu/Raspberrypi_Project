@@ -4,13 +4,25 @@ Maps the plant's top-view world (mm) onto the Blender ground plane (m):
     world (x, y, z)  ->  Blender (x/100, y/100, z/100)
 """
 import os
+import sys
+import math
 import time
 
 import bpy
+from mathutils import Vector
 import paho.mqtt.client as mqtt
+
+_project_root = os.path.dirname(bpy.path.abspath("//").rstrip("/"))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from robot.kinematics import SixAxisRobot
 
 BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = 1883
+
+ROBOT_MODEL = SixAxisRobot()
+ROBOT_BASES = {"a": (4.6, 0.4, 0.0), "b": (4.0, 3.1, 0.0)}
 
 state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "part_x": -1.0, "part_y": -1.0, "belt": 0.0, "speed": 90.0,
@@ -22,7 +34,10 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "fill/a/filled": 0, "fill/a/pickups": 2, "fill/a/pouring": 0,
          "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
          "fill/b/filled": 0, "fill/b/pickups": 5, "fill/b/pouring": 0,
-         "fill/total": 0.0}
+         "fill/total": 0.0,
+         "outfeed/positions": "", "outfeed/queued": 0,
+         "robot/a/holding": 0, "robot/b/holding": 0,
+         "robot/a/gripper": 1.0, "robot/b/gripper": 1.0}
 
 
 def _num(payload, default=0.0):
@@ -46,6 +61,17 @@ def on_message(_client, _userdata, msg):
         state[key] = int(_num(payload))
     elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state"):
         state[key] = payload
+
+    if key.startswith("robot/"):
+        if "/joint/" in key or "/tcp/" in key:
+            state[key] = _num(payload)
+        elif key.endswith("/holding") or key.endswith("/gripper"):
+            state[key] = _num(payload)
+    elif key.startswith("outfeed/"):
+        if key == "outfeed/positions":
+            state[key] = payload
+        else:
+            state[key] = int(_num(payload))
 
 
 def _obj(name):
@@ -294,6 +320,60 @@ def set_stream(key, stream_name, nozzle_name, sx, sy):
         nozzle.location = (sx, sy, 0.79 if pouring else 0.84)
 
 
+def _set_link(name, p1, p2, radius):
+    obj = _obj(name)
+    if obj is None:
+        return
+    mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0, (p1[2] + p2[2]) / 2.0)
+    direction = Vector((p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]))
+    length = max(direction.length, 0.001)
+    obj.location = mid
+    obj.scale = (radius, radius, length)
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+
+
+def _place(name, pos):
+    obj = _obj(name)
+    if obj is not None:
+        obj.location = pos
+
+
+def _robot_joints(key):
+    return [math.radians(state.get("robot/%s/joint/%d" % (key, i), 0.0))
+            for i in range(1, 7)]
+
+
+def _update_robots():
+    for key, base in ROBOT_BASES.items():
+        points = ROBOT_MODEL.joint_positions(_robot_joints(key))
+        p = [(base[0] + x / 100.0, base[1] + y / 100.0, base[2] + z / 100.0)
+             for x, y, z in points]
+        p0, p1, p2, p3, p4 = p
+        prefix = "Robot" + key.upper()
+        _set_link(prefix + "_Column", p0, p1, 0.030)
+        _set_link(prefix + "_UpperArm", p1, p2, 0.045)
+        _set_link(prefix + "_Forearm", p2, p3, 0.038)
+        _place(prefix + "_Shoulder", p1)
+        _place(prefix + "_Elbow", p2)
+        _place(prefix + "_Wrist", p3)
+        _place(prefix + "_Gripper", p4)
+
+
+def _update_outfeed():
+    positions = state.get("outfeed/positions", "")
+    xs = [float(v) for v in positions.split(",") if v.strip()] if positions else []
+    for i in range(6):
+        box = _obj("OutfeedBox%d" % i)
+        if box is None:
+            continue
+        if i < len(xs):
+            box.location = (xs[i] / 100.0, 3.6, 0.06)
+        else:
+            box.location = (100.0, 100.0, 100.0)
+
+
 def apply_twin():
     tool = _obj("ToolHead")
     jaw_a = _obj("JawA")
@@ -374,6 +454,8 @@ def apply_twin():
     _set_light("TowerYellow", yellow_on, (1.0, 0.85, 0.05))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
     _set_light("TowerBlue", blue_on, (0.05, 0.25, 1.0))
+    _update_robots()
+    _update_outfeed()
     _redraw()
 
     sync_settings()

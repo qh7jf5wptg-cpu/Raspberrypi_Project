@@ -171,14 +171,14 @@ ApplicationWindow {
                         var h = height
                         ctx.clearRect(0, 0, w, h)
 
-                        var WX = 520.0
-                        var WY = 297.0
+                        var WX = 700.0
+                        var WY = 400.0
                         var s = Math.min((w - 32) / WX, (h - 32) / WY)
                         var ox = (w - WX * s) / 2
                         var oy = (h - WY * s) / 2
 
                         function X(v) { return ox + (v + 25) * s }
-                        function Y(v) { return oy + (292 - v) * s }
+                        function Y(v) { return oy + (390 - v) * s }
 
                         ctx.strokeStyle = "#c9d2e0"
                         ctx.lineWidth = 2
@@ -245,6 +245,72 @@ ApplicationWindow {
                         }
                         drawStation(X(460), Y(100), "a", "FILL A")
                         drawStation(X(400), Y(240), "b", "FILL B")
+
+                        // Six-axis tending robots (top view: base, two arm
+                        // segments from the joint angles, and the gripper).
+                        function drawRobot(key, bx, by, label) {
+                            var q1 = num("robot/" + key + "/joint/1", 0) * Math.PI / 180
+                            var q2 = num("robot/" + key + "/joint/2", 0) * Math.PI / 180
+                            var q3 = num("robot/" + key + "/joint/3", 0) * Math.PI / 180
+                            var a2 = 200, a3 = 180
+                            var re = a2 * Math.cos(q2)
+                            var rw = a2 * Math.cos(q2) + a3 * Math.cos(q2 + q3)
+                            var ex = bx + re * Math.cos(q1)
+                            var ey = by + re * Math.sin(q1)
+                            var wx = bx + rw * Math.cos(q1)
+                            var wy = by + rw * Math.sin(q1)
+                            var tx = num("robot/" + key + "/tcp/x", wx)
+                            var ty = num("robot/" + key + "/tcp/y", wy)
+                            var holding = num("robot/" + key + "/holding", 0) > 0
+
+                            ctx.strokeStyle = "#f08a24"
+                            ctx.lineWidth = 3 * s
+                            ctx.lineCap = "round"
+                            ctx.beginPath()
+                            ctx.moveTo(X(bx), Y(by))
+                            ctx.lineTo(X(ex), Y(ey))
+                            ctx.lineTo(X(wx), Y(wy))
+                            ctx.lineTo(X(tx), Y(ty))
+                            ctx.stroke()
+
+                            ctx.fillStyle = "#2b3442"
+                            ctx.beginPath()
+                            ctx.arc(X(bx), Y(by), 7 * s, 0, Math.PI * 2)
+                            ctx.fill()
+
+                            ctx.fillStyle = holding ? "#2ecc71" : "#e67e22"
+                            ctx.beginPath()
+                            ctx.arc(X(tx), Y(ty), 4.5 * s, 0, Math.PI * 2)
+                            ctx.fill()
+
+                            ctx.fillStyle = "#172033"
+                            ctx.font = "bold 10px sans-serif"
+                            ctx.textAlign = "center"
+                            ctx.fillText(label, X(bx), Y(by) - 12 * s)
+                        }
+                        drawRobot("a", 460, 40, "ROBOT A")
+                        drawRobot("b", 400, 310, "ROBOT B")
+
+                        // Shared outfeed conveyor with placed containers.
+                        ctx.fillStyle = "#e9edf3"
+                        ctx.fillRect(X(300) - 6, Y(360) - 10 * s, 356 * s, 20 * s)
+                        ctx.strokeStyle = "#9aa7b8"
+                        ctx.lineWidth = 1.5
+                        ctx.strokeRect(X(300) - 6, Y(360) - 10 * s, 356 * s, 20 * s)
+                        ctx.fillStyle = "#8a97a8"
+                        ctx.font = "11px sans-serif"
+                        ctx.fillText("OUTFEED", X(475), Y(360) + 24 * s)
+
+                        var positions = tag("outfeed/positions", "")
+                        if (positions.length > 0) {
+                            var xs = positions.split(",")
+                            for (var i = 0; i < xs.length; i++) {
+                                var px = Number(xs[i])
+                                if (isNaN(px)) continue
+                                ctx.fillStyle = "#f5c242"
+                                ctx.fillRect(X(px) - 4 * s, Y(360) - 6 * s, 8 * s, 12 * s)
+                            }
+                        }
 
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"

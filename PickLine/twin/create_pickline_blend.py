@@ -1,6 +1,12 @@
 """Create the Blender scene for the PickLine (gantry + conveyor, two fill stations)."""
 import bpy
+import os
+import sys
 from mathutils import Vector
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from robot.kinematics import SixAxisRobot
 
 OUT = "/Users/kjde/Documents/ChatGPT/Raspberrypi_Project/PickLine/twin/PickLine_Twin.blend"
 
@@ -72,6 +78,18 @@ def add_sphere(name, loc, radius, mat):
     return obj
 
 
+def add_link(name, p1, p2, radius, mat):
+    """Cylinder spanning two points, oriented along the segment."""
+    mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0, (p1[2] + p2[2]) / 2.0)
+    direction = Vector((p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]))
+    length = max(direction.length, 0.001)
+    obj = add_cylinder(name, mid, (radius, radius, length), mat)
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+    return obj
+
+
 floor_mat = grid_material("Floor", (0.08, 0.09, 0.11), (0.12, 0.14, 0.17))
 belt_mat = material("Belt", (0.16, 0.18, 0.21), roughness=0.55)
 lane_mat = material("Lane", (0.42, 0.32, 0.18), roughness=0.6)
@@ -96,6 +114,8 @@ light_yellow = material("LightYellow", lens_grey, roughness=0.3, emission=0.0)
 light_green = material("LightGreen", lens_grey, roughness=0.3, emission=0.0)
 light_blue = material("LightBlue", lens_grey, roughness=0.3, emission=0.0)
 tower_pole_mat = material("TowerPole", (0.10, 0.11, 0.13), metallic=0.7, roughness=0.35)
+robot_body_mat = material("RobotBody", (0.93, 0.45, 0.10), metallic=0.5, roughness=0.35)
+robot_base_mat = material("RobotBase", (0.24, 0.27, 0.31), metallic=0.7, roughness=0.40)
 
 # Grid floor.
 bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
@@ -182,6 +202,38 @@ text_obj.location = (2.0, 3.0, 2.0)
 text_obj.scale = (0.14, 0.14, 0.14)
 text_obj.data.materials.append(text_mat)
 bpy.context.collection.objects.link(text_obj)
+
+# Two six-axis tending robots and the shared outfeed conveyor.
+robot_model = SixAxisRobot()
+SCALE = 0.01
+
+
+def build_robot(prefix, base):
+    pts = robot_model.joint_positions([0.0] * 6)
+    points = [(base[0] + x * SCALE, base[1] + y * SCALE, base[2] + z * SCALE)
+              for x, y, z in pts]
+    p0, p1, p2, p3, p4 = points
+    add_cylinder(prefix + "_Base", (base[0], base[1], 0.12),
+                 (0.10, 0.10, 0.12), robot_base_mat)
+    add_link(prefix + "_Column", p0, p1, 0.030, robot_body_mat)
+    add_link(prefix + "_UpperArm", p1, p2, 0.045, robot_body_mat)
+    add_link(prefix + "_Forearm", p2, p3, 0.038, robot_body_mat)
+    add_sphere(prefix + "_Shoulder", p1, 0.075, robot_body_mat)
+    add_sphere(prefix + "_Elbow", p2, 0.065, robot_body_mat)
+    add_sphere(prefix + "_Wrist", p3, 0.060, robot_body_mat)
+    box(prefix + "_Gripper", p4, (0.055, 0.055, 0.09), robot_body_mat)
+
+
+build_robot("RobotA", (4.6, 0.4, 0.0))
+build_robot("RobotB", (4.0, 3.1, 0.0))
+
+box("OutfeedBelt", (4.75, 3.6, 0.04), (1.75, 0.10, 0.02), belt_mat)
+add_cylinder("OutfeedRollerL", (3.0, 3.6, 0.05), (0.07, 0.10, 0.07),
+             roller_mat, (1.5708, 0, 0))
+add_cylinder("OutfeedRollerR", (6.5, 3.6, 0.05), (0.07, 0.10, 0.07),
+             roller_mat, (1.5708, 0, 0))
+for i in range(6):
+    box("OutfeedBox%d" % i, (100.0, 100.0, 100.0), (0.05, 0.05, 0.05), part_mat)
 
 # Camera.
 cam = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))

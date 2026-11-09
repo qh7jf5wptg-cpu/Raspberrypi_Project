@@ -496,6 +496,9 @@ def snapshot():
         values["pickline/outfeed/count"] = str(outfeed_count)
         values["pickline/outfeed/queued"] = str(len(outfeed))
         values["pickline/outfeed/infeed_clear"] = "1" if infeed_clear else "0"
+        values["pickline/outfeed/positions"] = ",".join(
+            "%.1f" % x for x in outfeed
+        )
         return values
 
 

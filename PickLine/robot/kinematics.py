@@ -54,3 +54,30 @@ class SixAxisRobot:
         q5 = -(q2 + q3)
         q6 = -q1
         return [q1, q2, q3, q4, q5, q6]
+
+    # ------------------------------------------------------------------ #
+    # Joint positions in the robot base frame, for 3D visualisation.      #
+    # Returns [base, shoulder, elbow, wrist, tool].                       #
+    # ------------------------------------------------------------------ #
+    def joint_positions(self, q):
+        q1, q2, q3, _q4, _q5, _q6 = q
+        base = (0.0, 0.0, 0.0)
+        shoulder = (0.0, 0.0, self.d1)
+
+        # Arm plane (before the J1 yaw about Z).
+        ex = self.a2 * math.cos(q2)
+        ez = self.d1 + self.a2 * math.sin(q2)
+        elbow_plane = (ex, 0.0, ez)
+        wx = ex + self.a3 * math.cos(q2 + q3)
+        wz = ez + self.a3 * math.sin(q2 + q3)
+        wrist_plane = (wx, 0.0, wz)
+
+        def yaw(point):
+            x, y, z = point
+            return (x * math.cos(q1) - y * math.sin(q1),
+                    x * math.sin(q1) + y * math.cos(q1), z)
+
+        elbow = yaw(elbow_plane)
+        wrist = yaw(wrist_plane)
+        tool = (wrist[0], wrist[1], wrist[2] - self.d6)
+        return [base, shoulder, elbow, wrist, tool]
