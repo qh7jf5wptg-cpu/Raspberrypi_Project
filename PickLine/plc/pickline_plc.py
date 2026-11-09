@@ -183,8 +183,11 @@ def station_available():
         return station["a"] not in ("FULL", "FAULT")
     if route_mode == "left":
         return station["b"] not in ("FULL", "FAULT")
-    target = "a" if side == "down" else "b"
-    return station[target] not in ("FULL", "FAULT")
+    # The gantry keeps feeding as long as either station is free; the batch
+    # target in choose_side() switches it to the other station immediately
+    # after a fill completes, so the robots unload in the background.
+    return (station["a"] not in ("FULL", "FAULT")
+            or station["b"] not in ("FULL", "FAULT"))
 
 
 def enter_step(index, now):
@@ -541,6 +544,11 @@ def publish_status():
             last[topic] = payload
 
 
+def on_disconnect(_cli, _userdata, rc, *_args):
+    print("PLC MQTT disconnected (rc=%s); reconnecting automatically" % rc,
+          flush=True)
+
+
 def main():
     global client
     try:
@@ -549,7 +557,20 @@ def main():
         client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(BROKER, PORT, 60)
+    client.on_disconnect = on_disconnect
+    client.reconnect_delay_set(min_delay=1, max_delay=10)
+    client.max_queued_messages_set(20)
+
+    # Keep retrying the initial connect so a broker that is briefly down does
+    # not kill the PLC process.
+    while True:
+        try:
+            client.connect(BROKER, PORT, 60)
+            break
+        except Exception as exc:
+            print("PLC connect failed (%s); retrying in 2s" % exc, flush=True)
+            time.sleep(2)
+
     client.loop_start()
     print("PickLine PLC running (broker %s:%d)" % (BROKER, PORT))
     publish_status()

@@ -523,6 +523,11 @@ def publish(client, values):
             last_published[topic] = payload
 
 
+def on_disconnect(_cli, _userdata, rc, *_args):
+    print("Plant MQTT disconnected (rc=%s); reconnecting automatically" % rc,
+          flush=True)
+
+
 def main():
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
@@ -530,7 +535,18 @@ def main():
         client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(BROKER, PORT, 60)
+    client.on_disconnect = on_disconnect
+    client.reconnect_delay_set(min_delay=1, max_delay=10)
+    client.max_queued_messages_set(20)
+
+    while True:
+        try:
+            client.connect(BROKER, PORT, 60)
+            break
+        except Exception as exc:
+            print("Plant connect failed (%s); retrying in 2s" % exc, flush=True)
+            time.sleep(2)
+
     client.loop_start()
     print("PickLine plant running (broker %s:%d)" % (BROKER, PORT))
 
