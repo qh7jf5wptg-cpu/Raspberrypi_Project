@@ -75,7 +75,7 @@ mode = "auto"
 started = False
 gap = DEFAULT_GAP
 side = "down"
-side_mode = "alternate"
+side_mode = "auto"
 side_alt = False
 route_mode = "auto"
 alternate_flag = False
@@ -107,8 +107,16 @@ def current_pick():
 
 
 def choose_side():
-    global side, side_alt
-    if side_mode == "down":
+    global side, side_alt, fill_target, fill_target_seen
+    if side_mode == "auto":
+        # Batch fill: when the target tank has completed a fill, switch to the
+        # other tank. The bin always matches the destination (A from DOWN, B
+        # from UP) so the two part types are easy to distinguish.
+        if fill_counts[fill_target] > fill_target_seen:
+            fill_target = "b" if fill_target == "a" else "a"
+            fill_target_seen = fill_counts[fill_target]
+        side = "down" if fill_target == "a" else "up"
+    elif side_mode == "down":
         side = "down"
     elif side_mode == "up":
         side = "up"
@@ -160,30 +168,14 @@ def apply_diverter(value):
 
 
 def decide_route():
-    global alternate_flag, fill_target, fill_target_seen
-    a_free = station["a"] not in ("FULL", "FAULT")
-    b_free = station["b"] not in ("FULL", "FAULT")
     if route_mode == "straight":
         apply_diverter(False)
     elif route_mode == "left":
         apply_diverter(True)
-    elif route_mode == "alternate":
-        if a_free and b_free:
-            alternate_flag = not alternate_flag
-            apply_diverter(not alternate_flag)  # A first, then B, then A, ...
-        elif a_free:
-            apply_diverter(False)
-        elif b_free:
-            apply_diverter(True)
     else:
-        # Auto: fill one station to completion, then the other. We switch on
-        # the completed-fill counter (which never resets), so the fast station
-        # being cleared by its robot cannot starve the slower station.
-        if fill_counts[fill_target] > fill_target_seen:
-            fill_target = "b" if fill_target == "a" else "a"
-            fill_target_seen = fill_counts[fill_target]
-        apply_diverter(fill_target == "b")
-    # else: neither free — handled by WAIT_STATION before the next pick.
+        # Auto / alternate: the bin determines the destination.
+        # DOWN bin -> tank A (straight), UP bin -> tank B (left).
+        apply_diverter(side == "up")
 
 
 def station_available():
@@ -191,7 +183,8 @@ def station_available():
         return station["a"] not in ("FULL", "FAULT")
     if route_mode == "left":
         return station["b"] not in ("FULL", "FAULT")
-    return station["a"] not in ("FULL", "FAULT") or station["b"] not in ("FULL", "FAULT")
+    target = "a" if side == "down" else "b"
+    return station[target] not in ("FULL", "FAULT")
 
 
 def enter_step(index, now):
@@ -442,7 +435,7 @@ def on_message(_cli, _userdata, msg):
                 except ValueError:
                     pass
             elif msg.topic == "pickline/command/side":
-                side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate") else "alternate"
+                side_mode = payload.lower() if payload.lower() in ("down", "up", "alternate", "auto") else "auto"
             elif msg.topic == "pickline/command/route":
                 route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
             elif msg.topic == "pickline/command/pause":

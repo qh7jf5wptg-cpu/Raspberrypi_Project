@@ -374,8 +374,8 @@ ApplicationWindow {
                             ctx.fillText(st === "ready" ? label + " ✓" : label,
                                          X(260), Y(binY) - 18)
                         }
-                        drawBin(20, "BIN DOWN")
-                        drawBin(190, "BIN UP")
+                        drawBin(20, "BIN A")
+                        drawBin(190, "BIN B")
 
                         // Sensors.
                         function sensor(cx, cy, label) {
@@ -392,34 +392,43 @@ ApplicationWindow {
                         ctx.fillStyle = num("sensor_divert", 0) > 0 ? "#2ecc71" : "#b6c0ce"
                         sensor(gateX, Y(210), "DIV")
 
+                        // Scanner readout at the belt input.
+                        var scannedType = tag("scanned", "")
+                        ctx.fillStyle = "#172033"
+                        ctx.font = "bold 11px sans-serif"
+                        ctx.textAlign = "left"
+                        ctx.fillText("SCAN: " + (scannedType || "--"),
+                                     X(30) + 12 * s, Y(100) - 22 * s)
+
                         // Part.
                         var holding = num("holding", 0) > 0
                         var partOnLine = !holding && num("part_x", -1) >= 0
                         var ppx = holding ? num("x", 0) : num("part_x", -1)
                         var ppy = holding ? num("y", 0) : num("part_y", -1)
+                        var partType = tag("part_type", "A")
+                        var partColor = partType === "B" ? "#f08a24" : "#27ae60"
                         if (holding || partOnLine) {
                             var partCx = X(ppx)
                             var partCy = Y(ppy)
                             var partR = holding ? 7 * s : 6 * s
-                            ctx.fillStyle = holding ? "#f39c12" : "#e0a800"
+                            ctx.fillStyle = partColor
                             ctx.beginPath()
                             ctx.arc(partCx, partCy, partR, 0, Math.PI * 2)
                             ctx.fill()
-                            ctx.strokeStyle = holding ? "#27ae60" : "#8a6d00"
+                            ctx.strokeStyle = "#172033"
                             ctx.lineWidth = 2
                             ctx.stroke()
+                            ctx.fillStyle = "#ffffff"
+                            ctx.font = "bold 10px sans-serif"
+                            ctx.textAlign = "center"
+                            ctx.fillText(partType, partCx, partCy + 3 * s)
                             ctx.fillStyle = "#172033"
                             ctx.font = "bold 11px sans-serif"
                             ctx.textAlign = "center"
                             if (holding)
-                                ctx.fillText("HOLDING", partCx, partCy - 12 * s)
-                            else if (num("part_y", 0) > 100)
-                                ctx.fillText("TO B", partCx, partCy - 12 * s)
-                            else if (num("part_x", 0) >= 400)
-                                ctx.fillText("TO A", partCx, partCy - 12 * s)
+                                ctx.fillText("HOLDING " + partType, partCx, partCy - 12 * s)
                             else
-                                ctx.fillText(num("diverter", 0) > 0.5 ? "TO B" : "TO A",
-                                             partCx, partCy - 12 * s)
+                                ctx.fillText("PART " + partType, partCx, partCy - 12 * s)
                         }
 
                         // Gantry tool crosshair.

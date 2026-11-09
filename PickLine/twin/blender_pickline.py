@@ -37,7 +37,8 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "fill/total": 0.0,
          "outfeed/positions": "", "outfeed/queued": 0,
          "robot/a/holding": 0, "robot/b/holding": 0,
-         "robot/a/gripper": 1.0, "robot/b/gripper": 1.0}
+         "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
+         "part_type": "A", "scanned": ""}
 
 
 def _num(payload, default=0.0):
@@ -59,7 +60,8 @@ def on_message(_client, _userdata, msg):
                  "fill/b/filled", "fill/b/pickups", "fill/b/pouring",
                  "paused", "estop"):
         state[key] = int(_num(payload))
-    elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state"):
+    elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state",
+                 "part_type", "scanned"):
         state[key] = payload
 
     if key.startswith("robot/"):
@@ -394,6 +396,8 @@ def apply_twin():
 
     part = _obj("Part")
     if part:
+        _set_color(part, (0.95, 0.55, 0.10, 1.0) if state.get("part_type") == "B"
+                   else (0.15, 0.85, 0.35, 1.0))
         if state["holding"]:
             part.location = (tool.location[0], tool.location[1], tool.location[2] - 0.10)
         elif state["part_x"] >= 0:

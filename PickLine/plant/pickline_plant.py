@@ -85,6 +85,8 @@ part_lane = "none"              # none | belt | straight | left | wait_a | wait_
 part_x = -1.0
 part_y = -1.0
 exited = 0
+part_type = "A"                 # A (from DOWN bin) or B (from UP bin)
+scanned = ""                    # last type read by the belt scanner
 
 volume = VOLUME
 fill = {
@@ -156,12 +158,15 @@ def clear_station(key):
 
 def reset_plant():
     global part_held, placed, part_lane, part_x, part_y, exited, total, jam
+    global part_type, scanned
     part_held = False
     placed = 0
     part_lane = "none"
     part_x = -1.0
     part_y = -1.0
     exited = 0
+    part_type = "A"
+    scanned = ""
     total = 0.0
     jam = False
     for key in ("a", "b"):
@@ -285,6 +290,7 @@ def enter_station(key):
 def step(dt):
     global grip, part_held, placed, belt, diverter, part_lane, part_x, part_y
     global total, sensor_in, sensor_out, sensor_divert, outfeed_count
+    global part_type, scanned
 
     with lock:
         for i in range(3):
@@ -301,8 +307,12 @@ def step(dt):
             grip = max(grip_target, grip - dt / GRIP_TIME)
 
         if grip <= 0.05 and not part_held and pos[2] <= 5.0:
-            if near(pos, PICK_DOWN, PICK_TOL) or near(pos, PICK_UP, PICK_TOL):
+            if near(pos, PICK_DOWN, PICK_TOL):
                 part_held = True
+                part_type = "A"
+            elif near(pos, PICK_UP, PICK_TOL):
+                part_held = True
+                part_type = "B"
 
         if grip >= 0.95 and part_held:
             part_held = False
@@ -377,6 +387,8 @@ def step(dt):
         sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
         sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
         sensor_divert = 1 if (part_lane == "left" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
+        if sensor_in and part_type:
+            scanned = part_type
 
         # Six-axis tending robots: move joints toward the TCP target, operate
         # the gripper, and unload full containers onto the outfeed conveyor.
@@ -454,6 +466,8 @@ def snapshot():
             "pickline/part_y": "%.2f" % py,
             "pickline/part_z": "%.2f" % pz,
             "pickline/part_on_line": "1" if part_lane != "none" else "0",
+            "pickline/part_type": part_type,
+            "pickline/scanned": scanned,
             "pickline/belt": "%.2f" % belt,
             "pickline/belt_pos": "%.1f" % belt_pos,
             "pickline/speed": "%.0f" % belt_speed,
