@@ -704,7 +704,12 @@ ApplicationWindow {
                                             height: 14
                                             width: parent.width * fillPct(modelData[0]) / 100
                                             radius: 4
-                                            color: "#4aa3df"
+                                            color: {
+                                                var s = fillState(modelData[0])
+                                                return (s === "FILLING" || s === "FULL")
+                                                       ? (window.blinkOn ? "#4aa3df" : "#cfe5f6")
+                                                       : "#4aa3df"
+                                            }
                                         }
                                     }
                                     Row {
