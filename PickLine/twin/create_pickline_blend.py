@@ -92,7 +92,7 @@ def add_link(name, p1, p2, radius, mat):
 
 floor_mat = grid_material("Floor", (0.08, 0.09, 0.11), (0.12, 0.14, 0.17))
 belt_mat = material("Belt", (0.16, 0.18, 0.21), roughness=0.55)
-lane_mat = material("Lane", (0.42, 0.32, 0.18), roughness=0.6)
+lane_mat = material("Lane", (0.25, 0.50, 0.85), roughness=0.6)
 roller_mat = material("Roller", (0.62, 0.66, 0.72), metallic=0.9, roughness=0.25)
 frame_mat = material("Frame", (0.20, 0.24, 0.30), metallic=0.8, roughness=0.35)
 rail_mat = material("Rail", (0.28, 0.33, 0.40), metallic=0.85, roughness=0.3)

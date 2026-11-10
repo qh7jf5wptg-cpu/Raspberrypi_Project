@@ -730,7 +730,7 @@ ApplicationWindow {
                                                 height: 12
                                                 radius: 6
                                                 color: index < fillFilled(key)
-                                                       ? (modelData[0] === "b" ? "#2ecc71" : "#f1c40f")
+                                                       ? (key === "b" ? "#2ecc71" : "#f1c40f")
                                                        : "#d0d7e0"
                                             }
                                         }

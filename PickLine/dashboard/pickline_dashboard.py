@@ -201,14 +201,14 @@ function lineChart(id, labels, datasets){
   });
 }
 const chartA = lineChart('chart-a', LA, [
-  { label:'Station A', data:DA, borderColor:'#4aa3df', backgroundColor:'#4aa3df22', tension:.3, pointRadius:0, fill:true }
+  { label:'Station A', data:DA, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
 ]);
 const chartB = lineChart('chart-b', LB, [
-  { label:'Station B', data:DB, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
+  { label:'Station B', data:DB, borderColor:'#2ecc71', backgroundColor:'#2ecc7122', tension:.3, pointRadius:0, fill:true }
 ]);
 const chart = lineChart('chart', LC, [
-  { label:'Station A', data:DCA, borderColor:'#4aa3df', backgroundColor:'#4aa3df22', tension:.3, pointRadius:0, fill:true },
-  { label:'Station B', data:DCB, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true }
+  { label:'Station A', data:DCA, borderColor:'#f1c40f', backgroundColor:'#f1c40f22', tension:.3, pointRadius:0, fill:true },
+  { label:'Station B', data:DCB, borderColor:'#2ecc71', backgroundColor:'#2ecc7122', tension:.3, pointRadius:0, fill:true }
 ]);
 
 function el(id){ return document.getElementById(id); }
@@ -295,6 +295,9 @@ async function poll(){
       const pct = Math.min(100, filled/pickups*100);
       el(p+'-fill').style.width = pct + '%';
       el(p+'-bar').className = 'bar ' + (st==='FULL'?'full':st==='FAULT'?'fault':'');
+      el(p+'-fill').style.background = (st === 'FULL' || st === 'FAULT')
+          ? 'var(--red)'
+          : (k === 'b' ? 'var(--green)' : 'var(--amber)');
       el(p+'-state').textContent = st;
       el(p+'-info').textContent = filled+' / '+pickups+' containers · '+(t['fill/'+k+'/count']||0)+' done'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
       el(p+'-take').disabled = (st !== 'FULL');
