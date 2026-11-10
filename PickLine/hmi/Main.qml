@@ -225,7 +225,7 @@ ApplicationWindow {
 
                             var frac = Math.max(0, Math.min(1, pct / 100))
                             var lh = frac * (tankH - 4)
-                            if (st === "FULL")
+                            if (st === "FILLING" || st === "FULL")
                                 ctx.fillStyle = blinkOn ? "#4aa3df" : "#cfe5f6"
                             else
                                 ctx.fillStyle = "#4aa3df"
