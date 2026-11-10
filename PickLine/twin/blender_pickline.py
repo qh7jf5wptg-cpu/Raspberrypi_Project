@@ -354,6 +354,7 @@ def _set_oriented_box(name, loc, size, direction):
         return
     obj.location = loc
     obj.scale = size
+    direction = Vector(direction)
     obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
         direction.normalized()
     ).to_euler()
