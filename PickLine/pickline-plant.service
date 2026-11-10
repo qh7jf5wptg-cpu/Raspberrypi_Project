@@ -1,0 +1,16 @@
+[Unit]
+Description=PickLine plant simulation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/home/pi/PickLine
+Environment=MQTT_BROKER=192.168.50.1
+ExecStart=/usr/bin/python3 plant/pickline_plant.py
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/pi/PickLine/plant.log
+StandardError=append:/home/pi/PickLine/plant.log
+
+[Install]
+WantedBy=multi-user.target
