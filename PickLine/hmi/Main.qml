@@ -58,8 +58,9 @@ ApplicationWindow {
     }
     function fillColor(key) {
         var s = fillState(key)
-        return s === "FULL" ? "#e74c3c"
-               : s === "FILLING" ? "#4aa3df"
+        var base = key === "b" ? "#2ecc71" : "#f1c40f"
+        return s === "FULL" ? base
+               : s === "FILLING" ? base
                : s === "FAULT" ? "#e74c3c" : "#9aa7b8"
     }
     function machineRunning() {
@@ -225,10 +226,12 @@ ApplicationWindow {
 
                             var frac = Math.max(0, Math.min(1, pct / 100))
                             var lh = frac * (tankH - 4)
+                            var tankColor = key === "b" ? "#2ecc71" : "#f1c40f"
+                            var tankColorLight = key === "b" ? "#c9f0d8" : "#fae8b8"
                             if (st === "FILLING" || st === "FULL")
-                                ctx.fillStyle = blinkOn ? "#4aa3df" : "#cfe5f6"
+                                ctx.fillStyle = blinkOn ? tankColor : tankColorLight
                             else
-                                ctx.fillStyle = "#4aa3df"
+                                ctx.fillStyle = tankColor
                             ctx.fillRect(x0 + 2, y0 + tankH - 2 - lh, tankW - 4, lh)
 
                             var borderColor = fillColor(key)
@@ -305,12 +308,15 @@ ApplicationWindow {
                         ctx.fillText("OUTFEED", X(535), Y(170) + 24 * s)
 
                         var positions = tag("outfeed/positions", "")
+                        var outTypes = tag("outfeed/types", "")
                         if (positions.length > 0) {
                             var xs = positions.split(",")
+                            var ts = outTypes.length > 0 ? outTypes.split(",") : []
                             for (var i = 0; i < xs.length; i++) {
                                 var px = Number(xs[i])
                                 if (isNaN(px)) continue
-                                ctx.fillStyle = "#f5c242"
+                                var t = i < ts.length ? ts[i] : "A"
+                                ctx.fillStyle = t === "B" ? "#2ecc71" : "#f1c40f"
                                 ctx.fillRect(X(px) - 4 * s, Y(170) - 6 * s, 8 * s, 12 * s)
                             }
                         }
@@ -409,7 +415,7 @@ ApplicationWindow {
                         var ppx = holding ? num("x", 0) : num("part_x", -1)
                         var ppy = holding ? num("y", 0) : num("part_y", -1)
                         var partType = tag("part_type", "A")
-                        var partColor = partType === "B" ? "#f08a24" : "#27ae60"
+                        var partColor = partType === "B" ? "#2ecc71" : "#f1c40f"
                         if (holding || partOnLine) {
                             var partCx = X(ppx)
                             var partCy = Y(ppy)
@@ -706,9 +712,11 @@ ApplicationWindow {
                                             radius: 4
                                             color: {
                                                 var s = fillState(modelData[0])
+                                                var c = modelData[0] === "b" ? "#2ecc71" : "#f1c40f"
+                                                var light = modelData[0] === "b" ? "#c9f0d8" : "#fae8b8"
                                                 return (s === "FILLING" || s === "FULL")
-                                                       ? (window.blinkOn ? "#4aa3df" : "#cfe5f6")
-                                                       : "#4aa3df"
+                                                       ? (window.blinkOn ? c : light)
+                                                       : c
                                             }
                                         }
                                     }
@@ -721,7 +729,9 @@ ApplicationWindow {
                                                 width: 12
                                                 height: 12
                                                 radius: 6
-                                                color: index < fillFilled(key) ? "#4aa3df" : "#d0d7e0"
+                                                color: index < fillFilled(key)
+                                                       ? (modelData[0] === "b" ? "#2ecc71" : "#f1c40f")
+                                                       : "#d0d7e0"
                                             }
                                         }
                                     }

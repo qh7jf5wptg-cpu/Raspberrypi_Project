@@ -103,8 +103,12 @@ carriage_mat = material("Carriage", (0.90, 0.35, 0.10), metallic=0.6, roughness=
 part_mat = material("Part", (0.95, 0.72, 0.10), metallic=0.2, roughness=0.35)
 sensor_mat = material("Sensor", (0.16, 0.20, 0.25), roughness=0.5)
 tank_mat = tank_material("Tank", (0.78, 0.84, 0.90))
+tank_mat_a = tank_material("TankA", (0.98, 0.82, 0.35))
+tank_mat_b = tank_material("TankB", (0.45, 0.85, 0.60))
 rim_mat = material("Rim", (0.55, 0.60, 0.66), metallic=0.9, roughness=0.25)
 liquid_mat = material("Liquid", (0.10, 0.55, 0.90), roughness=0.15, emission=0.5)
+liquid_mat_a = material("LiquidA", (0.98, 0.76, 0.10), roughness=0.15, emission=0.5)
+liquid_mat_b = material("LiquidB", (0.10, 0.75, 0.35), roughness=0.15, emission=0.5)
 nozzle_mat = material("Nozzle", (0.35, 0.40, 0.46), metallic=0.9, roughness=0.25)
 stream_mat = material("Stream", (0.35, 0.78, 0.98), emission=2.5)
 text_mat = material("StatusTextMat", (0.1, 0.9, 0.4), emission=2.0)
@@ -173,11 +177,11 @@ box("SensorOut", (3.7, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 box("SensorDivert", (4.0, 2.3, 0.08), (0.025, 0.025, 0.025), sensor_mat)
 
 # Two fill stations.
-box("TankA", (4.6, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat)
-box("LiquidA", (4.6, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+box("TankA", (4.6, 1.0, 0.30), (0.17, 0.17, 0.30), tank_mat_a)
+box("LiquidA", (4.6, 1.0, 0.03), (0.13, 0.13, 0.03), liquid_mat_a)
 add_cylinder("RimA", (4.6, 1.0, 0.61), (0.17, 0.17, 0.012), rim_mat)
-box("TankB", (4.0, 2.4, 0.30), (0.17, 0.17, 0.30), tank_mat)
-box("LiquidB", (4.0, 2.4, 0.03), (0.13, 0.13, 0.03), liquid_mat)
+box("TankB", (4.0, 2.4, 0.30), (0.17, 0.17, 0.30), tank_mat_b)
+box("LiquidB", (4.0, 2.4, 0.03), (0.13, 0.13, 0.03), liquid_mat_b)
 add_cylinder("RimB", (4.0, 2.4, 0.61), (0.17, 0.17, 0.012), rim_mat)
 
 # Nozzles and fill streams above each tank.

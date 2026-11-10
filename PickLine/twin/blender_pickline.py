@@ -35,7 +35,7 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
          "fill/b/filled": 0, "fill/b/pickups": 5, "fill/b/pouring": 0,
          "fill/total": 0.0,
-         "outfeed/positions": "", "outfeed/queued": 0,
+         "outfeed/positions": "", "outfeed/types": "", "outfeed/queued": 0,
          "robot/a/holding": 0, "robot/b/holding": 0,
          "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
          "part_type": "A", "scanned": ""}
@@ -70,7 +70,7 @@ def on_message(_client, _userdata, msg):
         elif key.endswith("/holding") or key.endswith("/gripper"):
             state[key] = _num(payload)
     elif key.startswith("outfeed/"):
-        if key == "outfeed/positions":
+        if key in ("outfeed/positions", "outfeed/types"):
             state[key] = payload
         else:
             state[key] = int(_num(payload))
@@ -301,10 +301,8 @@ def set_liquid(key, liquid_name, sx, sy):
     st = state.get("fill/" + key + "/state", "")
     if st == "FAULT":
         color = (0.90, 0.20, 0.15, 1.0)
-    elif st == "FULL":
-        color = (0.90, 0.20, 0.15, 1.0)
     else:
-        color = (0.10, 0.55, 0.90, 1.0)
+        color = (0.10, 0.75, 0.35, 1.0) if key == "b" else (0.98, 0.76, 0.10, 1.0)
     _set_color(liquid, color)
 
 
@@ -365,13 +363,18 @@ def _update_robots():
 
 def _update_outfeed():
     positions = state.get("outfeed/positions", "")
+    types = state.get("outfeed/types", "")
     xs = [float(v) for v in positions.split(",") if v.strip()] if positions else []
+    ts = types.split(",") if types else []
     for i in range(6):
         box = _obj("OutfeedBox%d" % i)
         if box is None:
             continue
         if i < len(xs):
             box.location = (xs[i] / 100.0, 1.7, 0.06)
+            t = ts[i] if i < len(ts) else "A"
+            _set_color(box, (0.10, 0.75, 0.35, 1.0) if t == "B"
+                       else (0.98, 0.76, 0.10, 1.0))
         else:
             box.location = (100.0, 100.0, 100.0)
 
@@ -396,8 +399,8 @@ def apply_twin():
 
     part = _obj("Part")
     if part:
-        _set_color(part, (0.95, 0.55, 0.10, 1.0) if state.get("part_type") == "B"
-                   else (0.15, 0.85, 0.35, 1.0))
+        _set_color(part, (0.10, 0.75, 0.35, 1.0) if state.get("part_type") == "B"
+                   else (0.98, 0.76, 0.10, 1.0))
         if state["holding"]:
             part.location = (tool.location[0], tool.location[1], tool.location[2] - 0.10)
         elif state["part_x"] >= 0:

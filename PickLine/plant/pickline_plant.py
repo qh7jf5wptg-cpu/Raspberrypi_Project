@@ -111,17 +111,17 @@ robots = {
         "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
         "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_A,
         "gripper": 1.0, "gripper_target": 1.0,
-        "holding": False, "busy": 0,
+        "holding": False, "busy": 0, "held_type": "A",
     },
     "b": {
         "base": G.ROBOT_B_BASE, "pick": G.PICK_B,
         "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
         "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_B,
         "gripper": 1.0, "gripper_target": 1.0,
-        "holding": False, "busy": 0,
+        "holding": False, "busy": 0, "held_type": "B",
     },
 }
-outfeed = []            # world x positions of containers riding the outfeed
+outfeed = []            # (x, type) of containers riding the outfeed
 outfeed_count = 0
 
 
@@ -423,6 +423,7 @@ def step(dt):
                         and fill[key]["state"] in ("FULL", "FAULT")):
                     clear_station(key)
                     rb["holding"] = True
+                    rb["held_type"] = "A" if key == "a" else "B"
 
             # Open the gripper over the shared drop point to place the container.
             if rb["gripper"] >= 0.95 and rb["holding"]:
@@ -432,16 +433,16 @@ def step(dt):
                     )
                     if clear:
                         rb["holding"] = False
-                        outfeed.append(G.OUTFEED_DROP[0])
+                        outfeed.append((G.OUTFEED_DROP[0], rb["held_type"]))
 
         # Outfeed conveyor: advance placed containers toward the exit.
         advanced = []
-        for x in outfeed:
+        for x, t in outfeed:
             nx = x + G.OUTFEED_SPEED * dt
             if nx >= G.OUTFEED_EXIT_X:
                 outfeed_count += 1
             else:
-                advanced.append(nx)
+                advanced.append((nx, t))
         outfeed[:] = advanced
 
 
@@ -507,14 +508,15 @@ def snapshot():
             values["pickline/robot/%s/busy" % key] = str(rb["busy"])
 
         infeed_clear = all(
-            abs(x - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for x in outfeed
+            abs(item[0] - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for item in outfeed
         )
         values["pickline/outfeed/count"] = str(outfeed_count)
         values["pickline/outfeed/queued"] = str(len(outfeed))
         values["pickline/outfeed/infeed_clear"] = "1" if infeed_clear else "0"
         values["pickline/outfeed/positions"] = ",".join(
-            "%.1f" % x for x in outfeed
+            "%.1f" % item[0] for item in outfeed
         )
+        values["pickline/outfeed/types"] = ",".join(item[1] for item in outfeed)
         return values
 
 
