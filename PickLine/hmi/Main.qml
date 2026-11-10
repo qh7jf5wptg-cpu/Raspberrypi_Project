@@ -331,8 +331,8 @@ ApplicationWindow {
                         var redOn = (num("estop", 0) > 0 || tag("state", "") === "FAULT") && blinkOn
                         var yellowOn = num("paused", 0) > 0 && blinkOn
                         var greenOn = machineRunning() && blinkOn
-                        var blueOn = tag("fill/a/state", "") === "FULL"
-                                     && tag("fill/b/state", "") === "FULL" && blinkOn
+                        var blueOn = (tag("fill/a/state", "") === "FULL"
+                                      || tag("fill/b/state", "") === "FULL") && blinkOn
                         ctx.fillStyle = redOn ? "#e74c3c" : "#2a3448"
                         ctx.beginPath(); ctx.arc(lx, ly - lsp, lr, 0, Math.PI * 2); ctx.fill()
                         ctx.fillStyle = yellowOn ? "#f1c40f" : "#2a3448"

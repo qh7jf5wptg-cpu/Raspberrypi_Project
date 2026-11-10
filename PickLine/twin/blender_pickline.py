@@ -456,9 +456,9 @@ def apply_twin():
     red_on = (state.get("estop", 0) or state.get("state", "") == "FAULT") and blink
     yellow_on = state.get("paused", 0) and blink
     green_on = running and blink
-    both_full = (state.get("fill/a/state", "") == "FULL"
-                 and state.get("fill/b/state", "") == "FULL")
-    blue_on = both_full and blink
+    any_full = (state.get("fill/a/state", "") == "FULL"
+                or state.get("fill/b/state", "") == "FULL")
+    blue_on = any_full and blink
     _set_light("TowerRed", red_on, (1.0, 0.02, 0.02))
     _set_light("TowerYellow", yellow_on, (1.0, 0.85, 0.05))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))
