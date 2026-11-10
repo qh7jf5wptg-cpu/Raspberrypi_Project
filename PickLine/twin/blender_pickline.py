@@ -334,6 +334,31 @@ def _set_link(name, p1, p2, radius):
     ).to_euler()
 
 
+def _set_box_link(name, p1, p2, width, depth):
+    obj = _obj(name)
+    if obj is None:
+        return
+    mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0, (p1[2] + p2[2]) / 2.0)
+    direction = Vector((p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]))
+    length = max(direction.length, 0.001)
+    obj.location = mid
+    obj.scale = (width, depth, length)
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+
+
+def _set_oriented_box(name, loc, size, direction):
+    obj = _obj(name)
+    if obj is None:
+        return
+    obj.location = loc
+    obj.scale = size
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+
+
 def _place(name, pos):
     obj = _obj(name)
     if obj is not None:
@@ -352,13 +377,19 @@ def _update_robots():
              for x, y, z in points]
         p0, p1, p2, p3, p4 = p
         prefix = "Robot" + key.upper()
-        _set_link(prefix + "_Column", p0, p1, 0.030)
-        _set_link(prefix + "_UpperArm", p1, p2, 0.045)
-        _set_link(prefix + "_Forearm", p2, p3, 0.038)
-        _place(prefix + "_Shoulder", p1)
+        _set_link(prefix + "_Column", p0, p1, 0.05)
+        arm_dir = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+        _set_oriented_box(prefix + "_Shoulder", p1, (0.13, 0.13, 0.13), arm_dir)
+        _set_box_link(prefix + "_UpperArm", p1, p2, 0.09, 0.07)
+        _set_box_link(prefix + "_Forearm", p2, p3, 0.07, 0.06)
         _place(prefix + "_Elbow", p2)
         _place(prefix + "_Wrist", p3)
-        _place(prefix + "_Gripper", p4)
+        _place(prefix + "_Flange", p4)
+        # Gripper fingers open/close with the robot gripper state.
+        grip = state.get("robot/%s/gripper" % key, 1.0)
+        gap = 0.012 + 0.025 * grip
+        _place(prefix + "_GripperA", (p4[0], p4[1] + gap, p4[2] - 0.045))
+        _place(prefix + "_GripperB", (p4[0], p4[1] - gap, p4[2] - 0.045))
 
 
 def _update_outfeed():

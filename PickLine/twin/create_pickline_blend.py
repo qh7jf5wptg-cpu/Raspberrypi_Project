@@ -90,6 +90,27 @@ def add_link(name, p1, p2, radius, mat):
     return obj
 
 
+def add_box_link(name, p1, p2, width, depth, mat):
+    """Rectangular link between two points, long axis along the segment."""
+    mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0, (p1[2] + p2[2]) / 2.0)
+    direction = Vector((p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]))
+    length = max(direction.length, 0.001)
+    obj = box(name, mid, (width, depth, length), mat)
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+    return obj
+
+
+def add_oriented_box(name, loc, size, direction, mat):
+    """Axis-aligned box placed at a point and rotated along a direction."""
+    obj = box(name, loc, size, mat)
+    obj.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(
+        direction.normalized()
+    ).to_euler()
+    return obj
+
+
 floor_mat = grid_material("Floor", (0.08, 0.09, 0.11), (0.12, 0.14, 0.17))
 belt_mat = material("Belt", (0.16, 0.18, 0.21), roughness=0.55)
 lane_mat = material("Lane", (0.25, 0.50, 0.85), roughness=0.6)
@@ -122,6 +143,8 @@ light_blue = material("LightBlue", lens_grey, roughness=0.3, emission=0.0)
 tower_pole_mat = material("TowerPole", (0.10, 0.11, 0.13), metallic=0.7, roughness=0.35)
 robot_body_mat = material("RobotBody", (0.93, 0.45, 0.10), metallic=0.5, roughness=0.35)
 robot_base_mat = material("RobotBase", (0.24, 0.27, 0.31), metallic=0.7, roughness=0.40)
+robot_wrist_mat = material("RobotWrist", (0.36, 0.39, 0.43), metallic=0.85, roughness=0.30)
+robot_gripper_mat = material("RobotGripper", (0.20, 0.22, 0.26), metallic=0.7, roughness=0.35)
 
 # Grid floor.
 bpy.ops.mesh.primitive_plane_add(size=14, location=(2.0, 1.1, 0.0))
@@ -219,15 +242,27 @@ def build_robot(prefix, base):
     points = [(base[0] + x * SCALE, base[1] + y * SCALE, base[2] + z * SCALE)
               for x, y, z in pts]
     p0, p1, p2, p3, p4 = points
-    add_cylinder(prefix + "_Base", (base[0], base[1], 0.12),
-                 (0.10, 0.10, 0.12), robot_base_mat)
-    add_link(prefix + "_Column", p0, p1, 0.030, robot_body_mat)
-    add_link(prefix + "_UpperArm", p1, p2, 0.045, robot_body_mat)
-    add_link(prefix + "_Forearm", p2, p3, 0.038, robot_body_mat)
-    add_sphere(prefix + "_Shoulder", p1, 0.075, robot_body_mat)
-    add_sphere(prefix + "_Elbow", p2, 0.065, robot_body_mat)
-    add_sphere(prefix + "_Wrist", p3, 0.060, robot_body_mat)
-    box(prefix + "_Gripper", p4, (0.055, 0.055, 0.09), robot_body_mat)
+    # Base: pedestal plus a square mounting plate.
+    add_cylinder(prefix + "_Base", (base[0], base[1], 0.06),
+                 (0.12, 0.12, 0.06), robot_base_mat)
+    box(prefix + "_BasePlate", (base[0], base[1], 0.13),
+        (0.17, 0.17, 0.03), robot_base_mat)
+    # J1 rotating column.
+    add_link(prefix + "_Column", p0, p1, 0.05, robot_base_mat)
+    # Shoulder housing and boxy arm links (KUKA/ABB style).
+    arm_dir = Vector((p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]))
+    add_oriented_box(prefix + "_Shoulder", p1, (0.13, 0.13, 0.13), arm_dir,
+                     robot_body_mat)
+    add_box_link(prefix + "_UpperArm", p1, p2, 0.09, 0.07, robot_body_mat)
+    add_box_link(prefix + "_Forearm", p2, p3, 0.07, 0.06, robot_body_mat)
+    # Elbow, wrist, tool flange and two gripper fingers.
+    add_sphere(prefix + "_Elbow", p2, 0.055, robot_wrist_mat)
+    add_sphere(prefix + "_Wrist", p3, 0.050, robot_wrist_mat)
+    add_cylinder(prefix + "_Flange", p4, (0.045, 0.045, 0.018), robot_wrist_mat)
+    box(prefix + "_GripperA", (p4[0], p4[1] + 0.03, p4[2] - 0.045),
+        (0.025, 0.012, 0.09), robot_gripper_mat)
+    box(prefix + "_GripperB", (p4[0], p4[1] - 0.03, p4[2] - 0.045),
+        (0.025, 0.012, 0.09), robot_gripper_mat)
 
 
 build_robot("RobotA", (4.6, 1.35, 0.0))
