@@ -225,7 +225,10 @@ ApplicationWindow {
 
                             var frac = Math.max(0, Math.min(1, pct / 100))
                             var lh = frac * (tankH - 4)
-                            ctx.fillStyle = "#4aa3df"
+                            if (st === "FULL")
+                                ctx.fillStyle = blinkOn ? "#4aa3df" : "#cfe5f6"
+                            else
+                                ctx.fillStyle = "#4aa3df"
                             ctx.fillRect(x0 + 2, y0 + tankH - 2 - lh, tankW - 4, lh)
 
                             var borderColor = fillColor(key)
