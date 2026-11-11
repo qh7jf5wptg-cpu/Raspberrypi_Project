@@ -341,13 +341,15 @@ def step(dt):
         speed = belt_speed * belt
         part_speed = 0.0 if jam else speed
 
-        # Move every container along the line; route by part type (A straight,
-        # B left) instead of a single global diverter.
+        # Move every container along the line. At the belt end the diverter
+        # routes it straight (station A) or onto the left lane (station B).
+        # The scanner reads each container's type and the PLC sets the diverter
+        # before that container reaches the end of the belt.
         for part in parts:
             if part["lane"] == "belt":
                 part["x"] += part_speed * dt
                 if part["x"] >= BELT_LEN:
-                    if part["type"] == "B":
+                    if diverter > 0.5:
                         part["lane"] = "left"
                         part["x"] = BELT_LEN
                         part["y"] = DROP[1]

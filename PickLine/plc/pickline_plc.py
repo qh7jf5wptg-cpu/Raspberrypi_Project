@@ -58,6 +58,7 @@ SEQUENCE = [
     ("RELEASE_A",     "grip_a", None),
     ("LIFT_A",        "move", "drop_a_z"),
     ("TO_DROP_B",     "move", "drop_b_z"),
+    ("WAIT_BELT_CLEAR", "wait_clear", None),
     ("LOWER_B",       "move", "drop_b"),
     ("RELEASE_B",     "grip_b", None),
     ("LIFT_B",        "move", "drop_b_z"),
@@ -87,6 +88,8 @@ decision = "A+B"
 alarm = ""
 step_idx = 0
 step_started = 0.0
+scanned = ""
+belt_pos = -1.0
 
 exit_base = 0
 part_exited = False
@@ -162,16 +165,22 @@ def enter_step(index, now):
         client.publish("pickline/target/grip_b", "0", retain=False)
     elif kind == "grip_a":
         client.publish("pickline/target/grip_a", "1", retain=False)
+        # Remember how many containers have already entered a station so
+        # WAIT_EXIT knows to wait for exactly the two from this cycle.
+        exit_base = tags["exited"]
     elif kind == "grip_b":
         client.publish("pickline/target/grip_b", "1", retain=False)
-    elif kind == "wait_exit":
-        exit_base = tags["exited"]
 
 
 def hold_position():
     client.publish("pickline/target/x", "%.1f" % tags["x"], retain=False)
     client.publish("pickline/target/y", "%.1f" % tags["y"], retain=False)
     client.publish("pickline/target/z", "%.1f" % tags["z"], retain=False)
+
+
+def apply_diverter(value):
+    """Route the next container straight (0, station A) or left (1, station B)."""
+    client.publish("pickline/target/diverter", value, retain=False)
 
 
 def robot_poses(key):
@@ -266,13 +275,15 @@ def tick_robots(_now):
 
 
 def start_auto():
-    global started, alarm, exit_base, jam_flag
+    global started, alarm, exit_base, jam_flag, decision
     started = True
     alarm = ""
     jam_flag = 0
+    decision = "STRAIGHT"
     # Clear any part on the belt but keep fill stations and production counts.
     client.publish("pickline/clear_belt", "1", retain=False)
     client.publish("pickline/target/belt", "1", retain=False)
+    client.publish("pickline/target/diverter", "0", retain=False)
     exit_base = 0
     enter_step(0, time.monotonic())
 
@@ -291,6 +302,8 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/fill/b/pickups")
     cli.subscribe("pickline/jam")
     cli.subscribe("pickline/part_on_line")
+    cli.subscribe("pickline/scanned")
+    cli.subscribe("pickline/belt_pos")
     cli.subscribe("pickline/robot/+/tcp/+")
     cli.subscribe("pickline/robot/+/holding")
     cli.subscribe("pickline/outfeed/infeed_clear")
@@ -299,7 +312,7 @@ def on_connect(cli, *_args):
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
-    global paused, estop, part_on_line, infeed_clear
+    global paused, estop, part_on_line, infeed_clear, decision, scanned, belt_pos
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -330,6 +343,20 @@ def on_message(_cli, _userdata, msg):
                     jam_flag = int(float(payload or 0))
                 elif msg.topic == "pickline/part_on_line":
                     part_on_line = int(float(payload or 0))
+                elif msg.topic == "pickline/scanned":
+                    scanned = payload
+                    # The scanner reads each container at the belt infeed; in
+                    # auto mode it selects the route before the container
+                    # reaches the end of the belt.
+                    if mode == "auto":
+                        if payload.upper() == "B":
+                            apply_diverter("1")
+                            decision = "LEFT"
+                        else:
+                            apply_diverter("0")
+                            decision = "STRAIGHT"
+                elif msg.topic == "pickline/belt_pos":
+                    belt_pos = float(payload)
                 elif msg.topic.startswith("pickline/robot/") and "/tcp/" in msg.topic:
                     key = msg.topic.split("/")[2]
                     axis = msg.topic.split("/")[4]
@@ -415,6 +442,12 @@ def step_done(now):
         return tags["holding_a"] == 0
     if kind == "grip_b":
         return tags["holding_b"] == 0
+    if kind == "wait_clear":
+        # Only one container may be on the belt at a time. Wait until the first
+        # container has passed the diverter (the belt is clear) before the
+        # second gripper drops its container, so the scanner can set the route
+        # for each container without ambiguity.
+        return belt_pos < 0
     if kind == "wait_exit":
         return tags["exited"] >= exit_base + 2
     if kind == "wait_station":

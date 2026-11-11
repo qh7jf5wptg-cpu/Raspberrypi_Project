@@ -506,8 +506,10 @@ def apply_twin():
                         break
 
     # Industrial stack light: green blinks while running, yellow on pause, red on estop/fault.
-    active_states = {"TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK", "TO_DROP",
-                     "LOWER_DROP", "RELEASE", "LIFT_DROP", "WAIT_EXIT", "WAIT_STATION"}
+    active_states = {"TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK",
+                     "TO_DROP_A", "LOWER_A", "RELEASE_A", "LIFT_A",
+                     "TO_DROP_B", "WAIT_BELT_CLEAR", "LOWER_B", "RELEASE_B", "LIFT_B",
+                     "WAIT_EXIT", "WAIT_STATION"}
     running = (state.get("mode", "auto") == "auto"
                and state.get("state", "IDLE") in active_states
                and not state.get("paused", 0) and not state.get("estop", 0))
