@@ -308,29 +308,55 @@ ApplicationWindow {
                         drawRobot("a", 460, 135, "ROBOT A")
                         drawRobot("b", 430, 205, "ROBOT B")
 
-                        // Shared outfeed conveyor with placed containers.
-                        ctx.fillStyle = "#e9edf3"
-                        ctx.fillRect(X(420) - 6, Y(170) - 10 * s, 236 * s, 20 * s)
-                        ctx.strokeStyle = "#9aa7b8"
-                        ctx.lineWidth = 1.5
-                        ctx.strokeRect(X(420) - 6, Y(170) - 10 * s, 236 * s, 20 * s)
-                        ctx.fillStyle = "#8a97a8"
-                        ctx.font = "11px sans-serif"
-                        ctx.fillText("OUTFEED", X(535), Y(170) + 24 * s)
+                        // Two independent outfeed lines, each ending at a lift
+                        // with a palletizer on top.
+                        function drawLine(key, y, color, label) {
+                            var liftX = 620
+                            // Outfeed belt.
+                            ctx.fillStyle = "#e9edf3"
+                            ctx.fillRect(X(420) - 6, Y(y) - 10 * s, 200 * s + 12, 20 * s)
+                            ctx.strokeStyle = "#9aa7b8"
+                            ctx.lineWidth = 1.5
+                            ctx.strokeRect(X(420) - 6, Y(y) - 10 * s, 200 * s + 12, 20 * s)
+                            ctx.fillStyle = "#8a97a8"
+                            ctx.font = "11px sans-serif"
+                            ctx.textAlign = "center"
+                            ctx.fillText(label, X(520), Y(y) + 24 * s)
 
-                        var positions = tag("outfeed/positions", "")
-                        var outTypes = tag("outfeed/types", "")
-                        if (positions.length > 0) {
-                            var xs = positions.split(",")
-                            var ts = outTypes.length > 0 ? outTypes.split(",") : []
-                            for (var i = 0; i < xs.length; i++) {
-                                var px = Number(xs[i])
-                                if (isNaN(px)) continue
-                                var t = i < ts.length ? ts[i] : "A"
-                                ctx.fillStyle = t === "B" ? "#2ecc71" : "#f1c40f"
-                                ctx.fillRect(X(px) - 4 * s, Y(170) - 6 * s, 8 * s, 12 * s)
+                            // Containers riding this outfeed.
+                            var positions = tag("outfeed/" + key + "/positions", "")
+                            if (positions.length > 0) {
+                                var xs = positions.split(",")
+                                for (var i = 0; i < xs.length; i++) {
+                                    var px = Number(xs[i])
+                                    if (isNaN(px)) continue
+                                    ctx.fillStyle = color
+                                    ctx.fillRect(X(px) - 4 * s, Y(y) - 6 * s, 8 * s, 12 * s)
+                                }
                             }
+
+                            // Lift platform at the end of the line.
+                            var lz = num("lift/" + key + "/z", 0)
+                            var lst = tag("lift/" + key + "/state", "IDLE")
+                            ctx.fillStyle = lst === "IDLE" ? "#cdd6e0" : "#f08a24"
+                            ctx.strokeStyle = "#2b3442"
+                            ctx.lineWidth = 2
+                            ctx.fillRect(X(liftX) - 9 * s, Y(y) - 9 * s, 18 * s, 18 * s)
+                            ctx.strokeRect(X(liftX) - 9 * s, Y(y) - 9 * s, 18 * s, 18 * s)
+                            ctx.fillStyle = "#172033"
+                            ctx.font = "bold 10px sans-serif"
+                            ctx.fillText("Z" + Math.round(lz), X(liftX), Y(y) + 4 * s)
+
+                            // Palletizer status above the lift.
+                            var stack = num("lift/" + key + "/stack", 0)
+                            var pallets = num("lift/" + key + "/pallets", 0)
+                            ctx.fillStyle = "#172033"
+                            ctx.font = "bold 11px sans-serif"
+                            ctx.fillText(label + "  STACK " + stack + "  ·  PALLETS " + pallets,
+                                         X(liftX) + 10 * s, Y(y) - 18 * s)
                         }
+                        drawLine("a", 170, "#f1c40f", "OUTFEED A")
+                        drawLine("b", 245, "#2ecc71", "OUTFEED B")
 
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"

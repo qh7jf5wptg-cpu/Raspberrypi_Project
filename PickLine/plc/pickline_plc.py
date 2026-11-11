@@ -97,8 +97,7 @@ robot = {
     "a": {"state": "IDLE", "tcp": (0.0, 0.0, 0.0), "holding": 0},
     "b": {"state": "IDLE", "tcp": (0.0, 0.0, 0.0), "holding": 0},
 }
-place_owner = None       # 'a' or 'b' currently placing on the outfeed, else None
-infeed_clear = 1
+infeed_clear = {"a": 1, "b": 1}   # per-line outfeed infeed clearance
 
 
 def move_target(kind):
@@ -169,12 +168,13 @@ def hold_position():
 def robot_poses(key):
     pick = G.PICK_A if key == "a" else G.PICK_B
     lift = (pick[0], pick[1], pick[2] + 80.0)
-    pre = (G.OUTFEED_DROP[0], G.OUTFEED_DROP[1], G.OUTFEED_DROP[2] + 80.0)
+    drop = G.OUTFEED_A_DROP if key == "a" else G.OUTFEED_B_DROP
+    pre = (drop[0], drop[1], drop[2] + 80.0)
     return {
         "pick": pick,
         "lift": lift,
         "pre_place": pre,
-        "place": G.OUTFEED_DROP,
+        "place": drop,
         "clear": pre,
         "park": lift,
     }
@@ -197,7 +197,6 @@ def robot_at(key, pos):
 
 
 def tick_robots(_now):
-    global place_owner
     with lock:
         for key in ("a", "b"):
             rb = robot[key]
@@ -235,8 +234,7 @@ def tick_robots(_now):
                     rb["state"] = "WAIT_SLOT"
 
             elif state == "WAIT_SLOT":
-                if place_owner is None and infeed_clear:
-                    place_owner = key
+                if infeed_clear[key]:
                     rb["state"] = "GO_PLACE"
                     send_robot_target(key, poses["place"])
 
@@ -252,7 +250,6 @@ def tick_robots(_now):
 
             elif state == "GO_CLEAR":
                 if robot_at(key, poses["clear"]):
-                    place_owner = None
                     rb["state"] = "IDLE"
                     send_robot_target(key, poses["park"])
 
@@ -289,7 +286,7 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/belt_infeed_clear")
     cli.subscribe("pickline/robot/+/tcp/+")
     cli.subscribe("pickline/robot/+/holding")
-    cli.subscribe("pickline/outfeed/infeed_clear")
+    cli.subscribe("pickline/outfeed/+/infeed_clear")
     cli.subscribe("pickline/command/#")
 
 
@@ -352,8 +349,10 @@ def on_message(_cli, _userdata, msg):
                     key = msg.topic.split("/")[2]
                     if key in robot:
                         robot[key]["holding"] = int(float(payload or 0))
-                elif msg.topic == "pickline/outfeed/infeed_clear":
-                    infeed_clear = int(float(payload or 0))
+                elif msg.topic.startswith("pickline/outfeed/") and msg.topic.endswith("/infeed_clear"):
+                    key = msg.topic.split("/")[2]
+                    if key in infeed_clear:
+                        infeed_clear[key] = int(float(payload or 0))
             except ValueError:
                 pass
 
@@ -500,7 +499,6 @@ def publish_status():
         "pickline/alarm": alarm,
         "pickline/robot/a/task": robot["a"]["state"],
         "pickline/robot/b/task": robot["b"]["state"],
-        "pickline/outfeed/owner": place_owner or "",
     }
     for topic, payload in values.items():
         if last.get(topic) != payload:

@@ -107,22 +107,42 @@ last_published = {}
 robot_model = SixAxisRobot()
 robots = {
     "a": {
-        "base": G.ROBOT_A_BASE, "pick": G.PICK_A,
+        "base": G.ROBOT_A_BASE, "pick": G.PICK_A, "place": G.OUTFEED_A_DROP,
         "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
         "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_A,
         "gripper": 1.0, "gripper_target": 1.0,
         "holding": False, "busy": 0, "held_type": "A",
     },
     "b": {
-        "base": G.ROBOT_B_BASE, "pick": G.PICK_B,
+        "base": G.ROBOT_B_BASE, "pick": G.PICK_B, "place": G.OUTFEED_B_DROP,
         "joints": [0.0] * 6, "joint_targets": [0.0] * 6,
         "tcp": (0.0, 0.0, 0.0), "tcp_target": G.PICK_B,
         "gripper": 1.0, "gripper_target": 1.0,
         "holding": False, "busy": 0, "held_type": "B",
     },
 }
-outfeed = []            # (x, type) of containers riding the outfeed
-outfeed_count = 0
+lines = {
+    "a": {
+        "outfeed": [],          # x positions of containers riding outfeed A
+        "entered": 0,           # containers that entered lift A
+        "lift_z": 0.0,
+        "lift_state": "IDLE",   # IDLE, LOADING, RAISING, UNLOADING, RETURNING
+        "holding": False,       # a container is currently on the lift
+        "stack": 0,             # containers stacked on the current pallet
+        "pallets": 0,           # finished pallets that have left
+        "timer": 0.0,
+    },
+    "b": {
+        "outfeed": [],
+        "entered": 0,
+        "lift_z": 0.0,
+        "lift_state": "IDLE",
+        "holding": False,
+        "stack": 0,
+        "pallets": 0,
+        "timer": 0.0,
+    },
+}
 
 
 def clamp(value, low, high):
@@ -176,6 +196,14 @@ def reset_plant():
         fill[key]["alarm"] = ""
         fill[key]["pouring"] = 0
         fill[key]["pour_timer"] = 0.0
+        lines[key]["outfeed"].clear()
+        lines[key]["entered"] = 0
+        lines[key]["lift_z"] = 0.0
+        lines[key]["lift_state"] = "IDLE"
+        lines[key]["holding"] = False
+        lines[key]["stack"] = 0
+        lines[key]["pallets"] = 0
+        lines[key]["timer"] = 0.0
 
 
 def clear_belt():
@@ -292,7 +320,7 @@ def enter_station(part, key):
 
 def step(dt):
     global placed, belt, diverter, total, sensor_in, sensor_out, sensor_divert
-    global outfeed_count, scanned, diverter_target
+    global scanned, diverter_target
 
     with lock:
         for i in range(3):
@@ -441,25 +469,65 @@ def step(dt):
                     rb["holding"] = True
                     rb["held_type"] = "A" if key == "a" else "B"
 
-            # Open the gripper over the shared drop point to place the container.
+            # Open the gripper over the station's own outfeed drop point.
             if rb["gripper"] >= 0.95 and rb["holding"]:
-                if near3(rb["tcp"], G.OUTFEED_DROP, G.GRIP_TOL):
+                if near3(rb["tcp"], rb["place"], G.GRIP_TOL):
                     clear = all(
-                        abs(x - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for x in outfeed
+                        abs(x - rb["place"][0]) >= G.OUTFEED_PITCH
+                        for x in lines[key]["outfeed"]
                     )
                     if clear:
                         rb["holding"] = False
-                        outfeed.append((G.OUTFEED_DROP[0], rb["held_type"]))
+                        lines[key]["outfeed"].append(rb["place"][0])
 
-        # Outfeed conveyor: advance placed containers toward the exit.
-        advanced = []
-        for x, t in outfeed:
-            nx = x + G.OUTFEED_SPEED * dt
-            if nx >= G.OUTFEED_EXIT_X:
-                outfeed_count += 1
-            else:
-                advanced.append((nx, t))
-        outfeed[:] = advanced
+        # Outfeed conveyors and lifts: advance containers toward each lift,
+        # raise them to the palletizer, and release finished pallets.
+        for key, line in lines.items():
+            lift_x = G.OUTFEED_A_LIFT_X if key == "a" else G.OUTFEED_B_LIFT_X
+
+            # Advance the outfeed. A container stops at the lift entrance when
+            # the lift is not ready to accept it.
+            advanced = []
+            for x in line["outfeed"]:
+                nx = x + G.OUTFEED_SPEED * dt
+                if nx >= lift_x:
+                    if line["lift_state"] == "IDLE" and not line["holding"]:
+                        line["lift_state"] = "LOADING"
+                        line["timer"] = 0.0
+                        line["entered"] += 1
+                    else:
+                        advanced.append(lift_x)
+                else:
+                    advanced.append(nx)
+            line["outfeed"] = advanced
+
+            # Lift / palletizer state machine.
+            if line["lift_state"] == "LOADING":
+                line["timer"] += dt
+                if line["timer"] >= G.LIFT_LOAD_TIME:
+                    line["holding"] = True
+                    line["timer"] = 0.0
+                    line["lift_state"] = "RAISING"
+            elif line["lift_state"] == "RAISING":
+                line["lift_z"] = min(G.LIFT_TOP_Z, line["lift_z"] + G.LIFT_SPEED * dt)
+                if line["lift_z"] >= G.LIFT_TOP_Z:
+                    line["timer"] = 0.0
+                    line["lift_state"] = "UNLOADING"
+            elif line["lift_state"] == "UNLOADING":
+                line["timer"] += dt
+                if line["timer"] >= G.LIFT_UNLOAD_TIME:
+                    line["holding"] = False
+                    line["stack"] += 1
+                    if line["stack"] >= G.PALLET_TARGET[key]:
+                        line["pallets"] += 1
+                        line["stack"] = 0
+                    line["timer"] = 0.0
+                    line["lift_state"] = "RETURNING"
+            elif line["lift_state"] == "RETURNING":
+                line["lift_z"] = max(0.0, line["lift_z"] - G.LIFT_SPEED * dt)
+                if line["lift_z"] <= 0.0:
+                    line["lift_z"] = 0.0
+                    line["lift_state"] = "IDLE"
 
 
 def snapshot():
@@ -540,16 +608,23 @@ def snapshot():
             values["pickline/robot/%s/holding" % key] = "1" if rb["holding"] else "0"
             values["pickline/robot/%s/busy" % key] = str(rb["busy"])
 
-        infeed_clear = all(
-            abs(item[0] - G.OUTFEED_DROP[0]) >= G.OUTFEED_PITCH for item in outfeed
-        )
-        values["pickline/outfeed/count"] = str(outfeed_count)
-        values["pickline/outfeed/queued"] = str(len(outfeed))
-        values["pickline/outfeed/infeed_clear"] = "1" if infeed_clear else "0"
-        values["pickline/outfeed/positions"] = ",".join(
-            "%.1f" % item[0] for item in outfeed
-        )
-        values["pickline/outfeed/types"] = ",".join(item[1] for item in outfeed)
+        for key, line in lines.items():
+            drop_x = G.OUTFEED_A_DROP[0] if key == "a" else G.OUTFEED_B_DROP[0]
+            infeed_clear = all(
+                abs(x - drop_x) >= G.OUTFEED_PITCH for x in line["outfeed"]
+            )
+            values["pickline/outfeed/%s/count" % key] = str(line["entered"])
+            values["pickline/outfeed/%s/queued" % key] = str(len(line["outfeed"]))
+            values["pickline/outfeed/%s/infeed_clear" % key] = (
+                "1" if infeed_clear else "0"
+            )
+            values["pickline/outfeed/%s/positions" % key] = ",".join(
+                "%.1f" % x for x in line["outfeed"]
+            )
+            values["pickline/lift/%s/z" % key] = "%.1f" % line["lift_z"]
+            values["pickline/lift/%s/state" % key] = line["lift_state"]
+            values["pickline/lift/%s/stack" % key] = str(line["stack"])
+            values["pickline/lift/%s/pallets" % key] = str(line["pallets"])
         return values
 
 

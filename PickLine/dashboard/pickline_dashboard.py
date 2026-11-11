@@ -182,6 +182,18 @@ HTML = """<!doctype html>
       <button id="b-take" class="take-btn" disabled>Take out</button>
     </div>
   </div>
+  <div class="cards">
+    <div class="card">
+      <div class="label">Lift A / palletizer</div>
+      <div class="value" id="lift-a-state">IDLE</div>
+      <p id="lift-a-info" style="color:var(--muted);font-size:12px">stack 0 · pallets 0</p>
+    </div>
+    <div class="card">
+      <div class="label">Lift B / palletizer</div>
+      <div class="value" id="lift-b-state">IDLE</div>
+      <p id="lift-b-info" style="color:var(--muted);font-size:12px">stack 0 · pallets 0</p>
+    </div>
+  </div>
   <div class="chart-row">
     <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
     <div class="chart-wrap"><canvas id="chart-b"></canvas></div>
@@ -302,6 +314,14 @@ async function poll(){
       el(p+'-info').textContent = filled+' / '+pickups+' containers · '+(t['fill/'+k+'/count']||0)+' done'+(t['fill/'+k+'/alarm']?' · '+t['fill/'+k+'/alarm']:'');
       el(p+'-take').disabled = (st !== 'FULL');
       el(p+'-take').classList.toggle('ready', st === 'FULL');
+    });
+
+    [['a','a'],['b','b']].forEach(([k,p]) => {
+      const lst = t['lift/'+k+'/state']||'IDLE';
+      const stack = parseInt(t['lift/'+k+'/stack']||0)||0;
+      const pallets = parseInt(t['lift/'+k+'/pallets']||0)||0;
+      el('lift-'+p+'-state').textContent = lst;
+      el('lift-'+p+'-info').textContent = 'stack ' + stack + ' · pallets ' + pallets;
     });
 
     LA.length = DA.length = LB.length = DB.length = LC.length = DCA.length = DCB.length = 0;

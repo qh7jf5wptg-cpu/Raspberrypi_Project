@@ -38,7 +38,12 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0,
          "fill/b/level": 0.0, "fill/b/state": "EMPTY", "fill/b/count": 0,
          "fill/b/filled": 0, "fill/b/pickups": 5, "fill/b/pouring": 0,
          "fill/total": 0.0,
-         "outfeed/positions": "", "outfeed/types": "", "outfeed/queued": 0,
+         "outfeed/a/positions": "", "outfeed/b/positions": "",
+         "outfeed/a/queued": 0, "outfeed/b/queued": 0,
+         "lift/a/state": "IDLE", "lift/b/state": "IDLE",
+         "lift/a/z": 0.0, "lift/b/z": 0.0,
+         "lift/a/stack": 0, "lift/b/stack": 0,
+         "lift/a/pallets": 0, "lift/b/pallets": 0,
          "robot/a/holding": 0, "robot/b/holding": 0,
          "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
          "scanned": ""}
@@ -74,10 +79,15 @@ def on_message(_client, _userdata, msg):
         elif key.endswith("/holding") or key.endswith("/gripper"):
             state[key] = _num(payload)
     elif key.startswith("outfeed/"):
-        if key in ("outfeed/positions", "outfeed/types"):
+        if key.endswith("/positions"):
             state[key] = payload
         else:
             state[key] = int(_num(payload))
+    elif key.startswith("lift/"):
+        if key.endswith("/state"):
+            state[key] = payload
+        else:
+            state[key] = _num(payload)
 
 
 def _obj(name):
@@ -121,6 +131,66 @@ def _set_light(name, on, color, strength=10.0):
                 node.inputs["Base Color"].default_value = grey
                 node.inputs["Emission Strength"].default_value = 0.0
             break
+
+
+_CUBE_VERTS = [
+    (-0.5, -0.5, -0.5), (0.5, -0.5, -0.5), (0.5, 0.5, -0.5), (-0.5, 0.5, -0.5),
+    (-0.5, -0.5, 0.5), (0.5, -0.5, 0.5), (0.5, 0.5, 0.5), (-0.5, 0.5, 0.5),
+]
+_CUBE_FACES = [
+    (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
+    (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
+]
+
+
+def _make_material(name, color):
+    mat = bpy.data.materials.get(name)
+    if mat is None:
+        mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf is None:
+        bsdf = mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+    return mat
+
+
+def _make_box(name, loc, dims, color):
+    ob = _obj(name)
+    if ob is not None:
+        return ob
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(_CUBE_VERTS, [], _CUBE_FACES)
+    mesh.update()
+    ob = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(ob)
+    ob.location = loc
+    ob.scale = dims
+    ob.data.materials.append(_make_material(name + "_mat", color))
+    return ob
+
+
+_line_objects_ready = False
+
+
+def _ensure_line_objects():
+    global _line_objects_ready
+    if _line_objects_ready:
+        return
+    _line_objects_ready = True
+    try:
+        _make_box("OutfeedBeltB", (5.2, 2.45, 0.04), (2.0, 0.10, 0.02),
+                  (0.60, 0.65, 0.70))
+        _make_box("LiftA", (6.2, 1.7, 0.08), (0.18, 0.18, 0.06),
+                  (0.90, 0.50, 0.20))
+        _make_box("LiftB", (6.2, 2.45, 0.08), (0.18, 0.18, 0.06),
+                  (0.90, 0.50, 0.20))
+        _make_box("PalletA", (6.2, 1.7, 0.72), (0.16, 0.16, 0.04),
+                  (0.98, 0.76, 0.10))
+        _make_box("PalletB", (6.2, 2.45, 0.72), (0.16, 0.16, 0.04),
+                  (0.10, 0.75, 0.35))
+    except Exception:
+        pass
 
 
 def _redraw():
@@ -398,21 +468,36 @@ def _update_robots():
 
 
 def _update_outfeed():
-    positions = state.get("outfeed/positions", "")
-    types = state.get("outfeed/types", "")
-    xs = [float(v) for v in positions.split(",") if v.strip()] if positions else []
-    ts = types.split(",") if types else []
-    for i in range(6):
-        box = _obj("OutfeedBox%d" % i)
-        if box is None:
-            continue
-        if i < len(xs):
-            box.location = (xs[i] / 100.0, 1.7, 0.06)
-            t = ts[i] if i < len(ts) else "A"
-            _set_color(box, (0.10, 0.75, 0.35, 1.0) if t == "B"
-                       else (0.98, 0.76, 0.10, 1.0))
-        else:
-            box.location = (100.0, 100.0, 100.0)
+    _ensure_line_objects()
+
+    # Line A uses OutfeedBox0..2 at y = 1.7 (yellow), line B uses OutfeedBox3..5
+    # at y = 2.45 (green).
+    lines = {
+        "a": {"y": 1.7, "color": (0.98, 0.76, 0.10, 1.0), "first": 0},
+        "b": {"y": 2.45, "color": (0.10, 0.75, 0.35, 1.0), "first": 3},
+    }
+    for key, cfg in lines.items():
+        positions = state.get("outfeed/%s/positions" % key, "")
+        xs = [float(v) for v in positions.split(",") if v.strip()] if positions else []
+        for i in range(3):
+            box = _obj("OutfeedBox%d" % (cfg["first"] + i))
+            if box is None:
+                continue
+            if i < len(xs):
+                box.location = (xs[i] / 100.0, cfg["y"], 0.06)
+                _set_color(box, cfg["color"])
+            else:
+                box.location = (100.0, 100.0, 100.0)
+
+    # Lift platforms rise with the plant lift z; pallet pads grow with the stack.
+    for key, y, pal_target in (("a", 1.7, 4), ("b", 2.45, 2)):
+        lift = _obj("Lift%s" % key.upper())
+        if lift:
+            lift.location = (6.2, y, 0.06 + state.get("lift/%s/z" % key, 0.0) / 100.0)
+        pal = _obj("Pallet%s" % key.upper())
+        if pal:
+            stack = max(0, int(state.get("lift/%s/stack" % key, 0)))
+            pal.location = (6.2, y, 0.72 + stack * 0.08)
 
 
 def apply_twin():
