@@ -350,10 +350,12 @@ ApplicationWindow {
                             // Palletizer status above the lift.
                             var stack = num("lift/" + key + "/stack", 0)
                             var pallets = num("lift/" + key + "/pallets", 0)
+                            var target = key === "a" ? 4 : 2
                             ctx.fillStyle = "#172033"
                             ctx.font = "bold 11px sans-serif"
-                            ctx.fillText(label + "  STACK " + stack + "  ·  PALLETS " + pallets,
-                                         X(liftX) + 10 * s, Y(y) - 18 * s)
+                            ctx.textAlign = "center"
+                            ctx.fillText(stack + "/" + target + "  ·  P" + pallets,
+                                         X(liftX), Y(y) - 18 * s)
                         }
                         drawLine("a", 170, "#f1c40f", "OUTFEED A")
                         drawLine("b", 245, "#2ecc71", "OUTFEED B")

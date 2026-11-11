@@ -504,7 +504,7 @@ def _update_outfeed():
             if box is None:
                 continue
             if i < stack:
-                box.location = (6.2, y, 0.08 + lift_z + i * 0.06)
+                box.location = (6.2, y, 0.13 + lift_z + i * 0.05)
             else:
                 box.location = (100.0, 100.0, 100.0)
 
