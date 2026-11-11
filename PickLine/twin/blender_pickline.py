@@ -185,10 +185,12 @@ def _ensure_line_objects():
                   (0.90, 0.50, 0.20))
         _make_box("LiftB", (6.2, 2.45, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
-        _make_box("PalletA", (6.2, 1.7, 0.72), (0.16, 0.16, 0.04),
-                  (0.98, 0.76, 0.10))
-        _make_box("PalletB", (6.2, 2.45, 0.72), (0.16, 0.16, 0.04),
-                  (0.10, 0.75, 0.35))
+        for i in range(4):
+            _make_box("LiftStackA%d" % i, (100.0, 100.0, 100.0),
+                      (0.12, 0.12, 0.05), (0.98, 0.76, 0.10))
+        for i in range(2):
+            _make_box("LiftStackB%d" % i, (100.0, 100.0, 100.0),
+                      (0.12, 0.12, 0.05), (0.10, 0.75, 0.35))
     except Exception:
         pass
 
@@ -489,15 +491,22 @@ def _update_outfeed():
             else:
                 box.location = (100.0, 100.0, 100.0)
 
-    # Lift platforms rise with the plant lift z; pallet pads grow with the stack.
-    for key, y, pal_target in (("a", 1.7, 4), ("b", 2.45, 2)):
+    # Lift platforms collect stacked containers at the bottom and rise with the
+    # plant lift z once the pallet is full.
+    for key, y, max_stack in (("a", 1.7, 4), ("b", 2.45, 2)):
+        lift_z = state.get("lift/%s/z" % key, 0.0) / 100.0
+        stack = max(0, int(state.get("lift/%s/stack" % key, 0)))
         lift = _obj("Lift%s" % key.upper())
         if lift:
-            lift.location = (6.2, y, 0.06 + state.get("lift/%s/z" % key, 0.0) / 100.0)
-        pal = _obj("Pallet%s" % key.upper())
-        if pal:
-            stack = max(0, int(state.get("lift/%s/stack" % key, 0)))
-            pal.location = (6.2, y, 0.72 + stack * 0.08)
+            lift.location = (6.2, y, 0.06 + lift_z)
+        for i in range(max_stack):
+            box = _obj("LiftStack%s%d" % (key.upper(), i))
+            if box is None:
+                continue
+            if i < stack:
+                box.location = (6.2, y, 0.08 + lift_z + i * 0.06)
+            else:
+                box.location = (100.0, 100.0, 100.0)
 
 
 def apply_twin():

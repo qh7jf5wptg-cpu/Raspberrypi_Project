@@ -127,7 +127,6 @@ lines = {
         "entered": 0,           # containers that entered lift A
         "lift_z": 0.0,
         "lift_state": "IDLE",   # IDLE, LOADING, RAISING, UNLOADING, RETURNING
-        "holding": False,       # a container is currently on the lift
         "stack": 0,             # containers stacked on the current pallet
         "pallets": 0,           # finished pallets that have left
         "timer": 0.0,
@@ -137,7 +136,6 @@ lines = {
         "entered": 0,
         "lift_z": 0.0,
         "lift_state": "IDLE",
-        "holding": False,
         "stack": 0,
         "pallets": 0,
         "timer": 0.0,
@@ -200,7 +198,6 @@ def reset_plant():
         lines[key]["entered"] = 0
         lines[key]["lift_z"] = 0.0
         lines[key]["lift_state"] = "IDLE"
-        lines[key]["holding"] = False
         lines[key]["stack"] = 0
         lines[key]["pallets"] = 0
         lines[key]["timer"] = 0.0
@@ -491,7 +488,7 @@ def step(dt):
             for x in line["outfeed"]:
                 nx = x + G.OUTFEED_SPEED * dt
                 if nx >= lift_x:
-                    if line["lift_state"] == "IDLE" and not line["holding"]:
+                    if line["lift_state"] == "IDLE":
                         line["lift_state"] = "LOADING"
                         line["timer"] = 0.0
                         line["entered"] += 1
@@ -501,13 +498,17 @@ def step(dt):
                     advanced.append(nx)
             line["outfeed"] = advanced
 
-            # Lift / palletizer state machine.
+            # Lift / palletizer state machine: collect containers onto a pallet
+            # at the bottom, then raise the lift only once the pallet is full.
             if line["lift_state"] == "LOADING":
                 line["timer"] += dt
                 if line["timer"] >= G.LIFT_LOAD_TIME:
-                    line["holding"] = True
+                    line["stack"] += 1
                     line["timer"] = 0.0
-                    line["lift_state"] = "RAISING"
+                    if line["stack"] >= G.PALLET_TARGET[key]:
+                        line["lift_state"] = "RAISING"
+                    else:
+                        line["lift_state"] = "IDLE"
             elif line["lift_state"] == "RAISING":
                 line["lift_z"] = min(G.LIFT_TOP_Z, line["lift_z"] + G.LIFT_SPEED * dt)
                 if line["lift_z"] >= G.LIFT_TOP_Z:
@@ -516,11 +517,8 @@ def step(dt):
             elif line["lift_state"] == "UNLOADING":
                 line["timer"] += dt
                 if line["timer"] >= G.LIFT_UNLOAD_TIME:
-                    line["holding"] = False
-                    line["stack"] += 1
-                    if line["stack"] >= G.PALLET_TARGET[key]:
-                        line["pallets"] += 1
-                        line["stack"] = 0
+                    line["pallets"] += 1
+                    line["stack"] = 0
                     line["timer"] = 0.0
                     line["lift_state"] = "RETURNING"
             elif line["lift_state"] == "RETURNING":
