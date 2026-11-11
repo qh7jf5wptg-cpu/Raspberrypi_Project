@@ -42,12 +42,11 @@ PICK_DOWN = (260.0, 20.0, 0.0)
 PICK_UP = (260.0, 190.0, 0.0)
 DROP = (0.0, 100.0, 0.0)
 DROP_B = (0.0, -70.0, 0.0)
-TRAVEL_Z = 60.0
+TRAVEL_Z = 30.0
 TOL = 2.0
 STEP_TIMEOUT = 15.0
-WAIT_TIMEOUT = 15.0
-DEFAULT_GAP = 0.5
-DROP_SPACING = 80.0       # minimum belt advance before the second gripper drops
+DEFAULT_GAP = 0.0
+DROP_SPACING = 40.0       # minimum belt advance before the second gripper drops
 
 SEQUENCE = [
     ("TO_PICK",       "move", "pick_z"),
@@ -55,6 +54,7 @@ SEQUENCE = [
     ("GRIP",          "grip", None),
     ("LIFT_PICK",     "move", "pick_z"),
     ("TO_DROP_A",     "move", "drop_a_z"),
+    ("WAIT_INFEED",   "wait_infeed", None),
     ("LOWER_A",       "move", "drop_a"),
     ("RELEASE_A",     "grip_a", None),
     ("LIFT_A",        "move", "drop_a_z"),
@@ -63,8 +63,6 @@ SEQUENCE = [
     ("LOWER_B",       "move", "drop_b"),
     ("RELEASE_B",     "grip_b", None),
     ("LIFT_B",        "move", "drop_b_z"),
-    ("WAIT_EXIT",     "wait_exit", None),
-    ("WAIT_STATION",  "wait_station", None),
 ]
 
 lock = threading.Lock()
@@ -91,10 +89,8 @@ step_idx = 0
 step_started = 0.0
 scanned = ""
 belt_pos = -1.0
-
-exit_base = 0
-part_exited = False
-part_exited_at = 0.0
+belt_infeed_clear = 1
+gap_start = 0.0
 
 last = {}
 last_resend = 0.0
@@ -145,15 +141,9 @@ def send_move_target():
     client.publish("pickline/target/z", "%.1f" % tz, retain=False)
 
 
-def station_available():
-    # Dual grippers feed both stations every cycle; wait only if both blocked.
-    return (station["a"] not in ("FULL", "FAULT")
-            or station["b"] not in ("FULL", "FAULT"))
-
-
 def enter_step(index, now):
     global step_idx, step_started, state
-    global exit_base, last_resend
+    global gap_start, last_resend
     step_idx = index
     step_started = now
     last_resend = now
@@ -166,9 +156,7 @@ def enter_step(index, now):
         client.publish("pickline/target/grip_b", "0", retain=False)
     elif kind == "grip_a":
         client.publish("pickline/target/grip_a", "1", retain=False)
-        # Remember how many containers have already entered a station so
-        # WAIT_EXIT knows to wait for exactly the two from this cycle.
-        exit_base = tags["exited"]
+        gap_start = now
     elif kind == "grip_b":
         client.publish("pickline/target/grip_b", "1", retain=False)
 
@@ -271,7 +259,7 @@ def tick_robots(_now):
 
 
 def start_auto():
-    global started, alarm, exit_base, jam_flag, decision
+    global started, alarm, jam_flag, decision
     started = True
     alarm = ""
     jam_flag = 0
@@ -280,7 +268,6 @@ def start_auto():
     client.publish("pickline/clear_belt", "1", retain=False)
     client.publish("pickline/target/belt", "1", retain=False)
     client.publish("pickline/target/diverter", "0", retain=False)
-    exit_base = 0
     enter_step(0, time.monotonic())
 
 
@@ -300,6 +287,7 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/part_on_line")
     cli.subscribe("pickline/scanned")
     cli.subscribe("pickline/belt_pos")
+    cli.subscribe("pickline/belt_infeed_clear")
     cli.subscribe("pickline/robot/+/tcp/+")
     cli.subscribe("pickline/robot/+/holding")
     cli.subscribe("pickline/outfeed/infeed_clear")
@@ -309,6 +297,7 @@ def on_connect(cli, *_args):
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
     global paused, estop, part_on_line, infeed_clear, decision, scanned, belt_pos
+    global belt_infeed_clear
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -350,6 +339,8 @@ def on_message(_cli, _userdata, msg):
                         decision = "STRAIGHT"
                 elif msg.topic == "pickline/belt_pos":
                     belt_pos = float(payload)
+                elif msg.topic == "pickline/belt_infeed_clear":
+                    belt_infeed_clear = int(float(payload or 0))
                 elif msg.topic.startswith("pickline/robot/") and "/tcp/" in msg.topic:
                     key = msg.topic.split("/")[2]
                     axis = msg.topic.split("/")[4]
@@ -409,7 +400,7 @@ def on_message(_cli, _userdata, msg):
             elif msg.topic == "pickline/command/route":
                 route_mode = payload.lower() if payload.lower() in ("auto", "straight", "left", "alternate") else "auto"
             elif msg.topic == "pickline/command/pause":
-                if mode == "auto" and started and not paused and step_idx <= 5:
+                if mode == "auto" and started and not paused and step_idx <= 6:
                     paused = True
                     hold_position()
             elif msg.topic == "pickline/command/resume":
@@ -435,14 +426,13 @@ def step_done(now):
         return tags["holding_a"] == 0
     if kind == "grip_b":
         return tags["holding_b"] == 0
+    if kind == "wait_infeed":
+        # Do not lower the first gripper until the belt infeed is clear.
+        return belt_infeed_clear == 1
     if kind == "wait_gap":
-        # Keep a short pitch between the two drops so the containers do not
-        # overlap, but allow several containers on the belt at the same time.
-        return belt_pos < 0 or belt_pos >= DROP_SPACING
-    if kind == "wait_exit":
-        return tags["exited"] >= exit_base + 2
-    if kind == "wait_station":
-        return station_available()
+        # Pitch the two drops apart: the first container must advance past the
+        # safety distance and the configured gap time must have elapsed.
+        return (belt_pos < 0 or belt_pos >= DROP_SPACING) and (now - gap_start >= gap)
     return at_target()
 
 
@@ -484,9 +474,8 @@ def tick(now):
                 client.publish("pickline/target/grip_b", "1", retain=False)
             last_resend = now
 
-        # Move/grip steps have a hard timeout. WAIT_EXIT and WAIT_STATION wait
-        # legitimately: a full station is now cleared by a tending robot, so a
-        # container waiting at the belt end is not a jam.
+        # Move/grip steps have a hard timeout. WAIT_INFEED and WAIT_GAP wait
+        # legitimately for the belt to make room, so they are not timed out.
         if kind in ("move", "grip") and now - step_started > STEP_TIMEOUT:
             started = False
             state = "FAULT"

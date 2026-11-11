@@ -82,7 +82,8 @@ ApplicationWindow {
     function canPause() {
         if (tag("mode", "auto") !== "auto") return false
         if (num("paused", 0) > 0 || num("estop", 0) > 0) return false
-        var beforeRelease = ["TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK", "TO_DROP", "LOWER_DROP"]
+        var beforeRelease = ["TO_PICK", "LOWER_PICK", "GRIP", "LIFT_PICK",
+                             "TO_DROP_A", "WAIT_INFEED", "LOWER_A"]
         return beforeRelease.indexOf(tag("state", "IDLE")) >= 0
     }
 
@@ -791,7 +792,7 @@ ApplicationWindow {
                             spacing: 5
 
                             Text {
-                                text: "GAP   " + num("gap", 0.5).toFixed(1) + " s"
+                                text: "GAP   " + num("gap", 0.0).toFixed(1) + " s"
                                 font.pixelSize: 11
                                 color: "#637083"
                             }
@@ -801,7 +802,7 @@ ApplicationWindow {
                                 from: 0
                                 to: 10
                                 stepSize: 0.1
-                                value: num("gap", 0.5)
+                                value: num("gap", 0.0)
                                 onMoved: if (pressed)
                                     bridge.publish("pickline/command/gap", value.toFixed(1))
                                 Connections {

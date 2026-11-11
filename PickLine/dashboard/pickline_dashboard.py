@@ -136,8 +136,8 @@ HTML = """<!doctype html>
   <div class="cards">
     <div class="card">
       <div class="label">Gap after exit</div>
-      <div class="value" id="gap-val">0.5 s</div>
-      <input type="range" id="gap-slider" min="0" max="10" step="0.1" value="0.5">
+      <div class="value" id="gap-val">0.0 s</div>
+      <input type="range" id="gap-slider" min="0" max="10" step="0.1" value="0">
     </div>
     <div class="card">
       <div class="label">Belt speed</div>
@@ -271,7 +271,7 @@ async function poll(){
     el('total-done').textContent = aCount + bCount;
     el('total').textContent = (parseFloat(t['fill/total']||0)||0).toFixed(0) + ' u';
 
-    const gap = parseFloat(t.gap||0.5)||0;
+    const gap = parseFloat(t.gap||0)||0;
     const speed = parseFloat(t.speed||90)||90;
     el('gap-val').textContent = gap.toFixed(1) + ' s';
     el('speed-val').textContent = speed.toFixed(0) + ' mm/s';

@@ -64,6 +64,7 @@ SENSOR_IN_X = 30.0
 SENSOR_OUT_X = 370.0
 SENSOR_DIVERT_Y = 230.0
 SENSOR_TOL = 6.0
+INFEED_PITCH = 40.0            # belt infeed is considered clear past this x
 
 ROBOT_JOINT_SPEED = 90.0     # deg/s
 ROBOT_GRIP_TIME = 0.35       # seconds to open or close the gripper
@@ -478,6 +479,10 @@ def snapshot():
         bx, by, bz = part_state(1, "B")
         belt_part = next((p for p in parts if p["lane"] == "belt"), None)
         belt_pos = belt_part["x"] if belt_part else -1.0
+        belt_infeed_clear = 1
+        for p in parts:
+            if p["lane"] == "belt" and p["x"] < INFEED_PITCH:
+                belt_infeed_clear = 0
 
         values = {
             "pickline/x": "%.2f" % pos[0],
@@ -500,6 +505,7 @@ def snapshot():
             "pickline/scanned": scanned,
             "pickline/belt": "%.2f" % belt,
             "pickline/belt_pos": "%.1f" % belt_pos,
+            "pickline/belt_infeed_clear": "1" if belt_infeed_clear else "0",
             "pickline/speed": "%.0f" % belt_speed,
             "pickline/diverter": "%.2f" % diverter,
             "pickline/sensor_in": "1" if sensor_in else "0",
