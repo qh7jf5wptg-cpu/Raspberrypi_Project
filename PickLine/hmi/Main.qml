@@ -445,6 +445,7 @@ ApplicationWindow {
                         drawPart("b", "#2ecc71", "B")
 
                         // Gantry tool crosshair.
+                        var holding = num("holding_a", 0) > 0 || num("holding_b", 0) > 0
                         var tx = X(num("x", 0))
                         var ty = Y(num("y", 0))
                         ctx.fillStyle = holding ? "#27ae60" : "#e67e22"
