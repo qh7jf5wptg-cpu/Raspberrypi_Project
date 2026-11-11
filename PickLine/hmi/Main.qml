@@ -341,7 +341,7 @@ ApplicationWindow {
                         // Industrial stack light in the top-right corner so it
                         // stays clear of the gantry travel path and the drop.
                         var lx = X(630)
-                        var ly = Y(350)
+                        var ly = Y(330)
                         var lr = 11
                         var lsp = 28
                         var topY = ly - lsp - lr - 7
