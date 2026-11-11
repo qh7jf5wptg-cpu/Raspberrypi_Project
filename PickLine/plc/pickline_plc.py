@@ -47,6 +47,7 @@ TOL = 2.0
 STEP_TIMEOUT = 15.0
 WAIT_TIMEOUT = 15.0
 DEFAULT_GAP = 0.5
+DROP_SPACING = 80.0       # minimum belt advance before the second gripper drops
 
 SEQUENCE = [
     ("TO_PICK",       "move", "pick_z"),
@@ -58,7 +59,7 @@ SEQUENCE = [
     ("RELEASE_A",     "grip_a", None),
     ("LIFT_A",        "move", "drop_a_z"),
     ("TO_DROP_B",     "move", "drop_b_z"),
-    ("WAIT_BELT_CLEAR", "wait_clear", None),
+    ("WAIT_GAP",      "wait_gap", None),
     ("LOWER_B",       "move", "drop_b"),
     ("RELEASE_B",     "grip_b", None),
     ("LIFT_B",        "move", "drop_b_z"),
@@ -176,11 +177,6 @@ def hold_position():
     client.publish("pickline/target/x", "%.1f" % tags["x"], retain=False)
     client.publish("pickline/target/y", "%.1f" % tags["y"], retain=False)
     client.publish("pickline/target/z", "%.1f" % tags["z"], retain=False)
-
-
-def apply_diverter(value):
-    """Route the next container straight (0, station A) or left (1, station B)."""
-    client.publish("pickline/target/diverter", value, retain=False)
 
 
 def robot_poses(key):
@@ -345,16 +341,13 @@ def on_message(_cli, _userdata, msg):
                     part_on_line = int(float(payload or 0))
                 elif msg.topic == "pickline/scanned":
                     scanned = payload
-                    # The scanner reads each container at the belt infeed; in
-                    # auto mode it selects the route before the container
-                    # reaches the end of the belt.
-                    if mode == "auto":
-                        if payload.upper() == "B":
-                            apply_diverter("1")
-                            decision = "LEFT"
-                        else:
-                            apply_diverter("0")
-                            decision = "STRAIGHT"
+                    # The scanner reads each container at the belt infeed. The
+                    # route is decided per container in the plant; here we only
+                    # mirror it for the HMI/dashboard display.
+                    if payload.upper() == "B":
+                        decision = "LEFT"
+                    else:
+                        decision = "STRAIGHT"
                 elif msg.topic == "pickline/belt_pos":
                     belt_pos = float(payload)
                 elif msg.topic.startswith("pickline/robot/") and "/tcp/" in msg.topic:
@@ -442,12 +435,10 @@ def step_done(now):
         return tags["holding_a"] == 0
     if kind == "grip_b":
         return tags["holding_b"] == 0
-    if kind == "wait_clear":
-        # Only one container may be on the belt at a time. Wait until the first
-        # container has passed the diverter (the belt is clear) before the
-        # second gripper drops its container, so the scanner can set the route
-        # for each container without ambiguity.
-        return belt_pos < 0
+    if kind == "wait_gap":
+        # Keep a short pitch between the two drops so the containers do not
+        # overlap, but allow several containers on the belt at the same time.
+        return belt_pos < 0 or belt_pos >= DROP_SPACING
     if kind == "wait_exit":
         return tags["exited"] >= exit_base + 2
     if kind == "wait_station":

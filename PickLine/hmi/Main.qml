@@ -183,7 +183,7 @@ ApplicationWindow {
                         ctx.clearRect(0, 0, w, h)
 
                         var WX = 700.0
-                        var WY = 400.0
+                        var WY = 470.0
                         var s = Math.min((w - 32) / WX, (h - 32) / WY)
                         var ox = (w - WX * s) / 2
                         var oy = (h - WY * s) / 2
@@ -338,9 +338,10 @@ ApplicationWindow {
                         ctx.font = "11px sans-serif"
                         ctx.fillText("DROP", X(0), Y(100) - 18 * s)
 
-                        // Industrial stack light above the drop point.
-                        var lx = X(0)
-                        var ly = Y(100) - 128
+                        // Industrial stack light in the top-right corner so it
+                        // stays clear of the gantry travel path and the drop.
+                        var lx = X(630)
+                        var ly = Y(350)
                         var lr = 11
                         var lsp = 28
                         var topY = ly - lsp - lr - 7

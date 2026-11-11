@@ -291,7 +291,7 @@ def enter_station(part, key):
 
 def step(dt):
     global placed, belt, diverter, total, sensor_in, sensor_out, sensor_divert
-    global outfeed_count, scanned
+    global outfeed_count, scanned, diverter_target
 
     with lock:
         for i in range(3):
@@ -321,12 +321,14 @@ def step(dt):
         if grip[0] >= 0.95 and held[0] and near(pos, DROP, PICK_TOL) and pos[2] <= 5.0:
             held[0] = False
             placed += 1
-            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1], "type": "A"})
+            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1],
+                          "type": "A", "route": "straight"})
         # Gripper B releases at the belt infeed (gantry sits at DROP_B).
         if grip[1] >= 0.95 and held[1] and near(pos, DROP_B, PICK_TOL) and pos[2] <= 5.0:
             held[1] = False
             placed += 1
-            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1], "type": "B"})
+            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1],
+                          "type": "B", "route": "left"})
 
         if belt < belt_target:
             belt = min(belt_target, belt + dt / BELT_TIME)
@@ -341,19 +343,21 @@ def step(dt):
         speed = belt_speed * belt
         part_speed = 0.0 if jam else speed
 
-        # Move every container along the line. At the belt end the diverter
-        # routes it straight (station A) or onto the left lane (station B).
-        # The scanner reads each container's type and the PLC sets the diverter
-        # before that container reaches the end of the belt.
+        # Move every container along the line. Each container carries its own
+        # route (straight -> station A, left -> station B), so several
+        # containers can share the belt at once. The diverter gate still swings
+        # to match each container as it reaches the end of the belt.
         for part in parts:
             if part["lane"] == "belt":
                 part["x"] += part_speed * dt
                 if part["x"] >= BELT_LEN:
-                    if diverter > 0.5:
+                    if part.get("route", "straight") == "left":
+                        diverter_target = 1.0
                         part["lane"] = "left"
                         part["x"] = BELT_LEN
                         part["y"] = DROP[1]
                     else:
+                        diverter_target = 0.0
                         part["lane"] = "straight"
                         part["y"] = DROP[1]
             elif part["lane"] == "straight":
