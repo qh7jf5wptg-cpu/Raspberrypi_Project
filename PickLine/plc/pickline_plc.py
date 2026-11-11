@@ -266,7 +266,7 @@ def start_auto():
     decision = "STRAIGHT"
     # Clear any part on the belt but keep fill stations and production counts.
     client.publish("pickline/clear_belt", "1", retain=False)
-    client.publish("pickline/target/belt", "1", retain=False)
+    client.publish("pickline/target/belt", "1", retain=True)
     client.publish("pickline/target/diverter", "0", retain=False)
     enter_step(0, time.monotonic())
 
@@ -371,7 +371,7 @@ def on_message(_cli, _userdata, msg):
                 started = False
                 state = "IDLE"
                 hold_position()
-                client.publish("pickline/target/belt", "0", retain=False)
+                client.publish("pickline/target/belt", "0", retain=True)
             elif msg.topic == "pickline/command/reset":
                 started = False
                 alarm = ""
@@ -379,7 +379,7 @@ def on_message(_cli, _userdata, msg):
                 state = "IDLE"
                 estop = False
                 paused = False
-                client.publish("pickline/target/belt", "0", retain=False)
+                client.publish("pickline/target/belt", "0", retain=True)
                 client.publish("pickline/target/diverter", "0", retain=False)
                 client.publish("pickline/plant/reset", "1", retain=False)
             elif msg.topic == "pickline/command/mode":
@@ -410,7 +410,7 @@ def on_message(_cli, _userdata, msg):
                 started = False
                 paused = False
                 state = "ESTOP"
-                client.publish("pickline/target/belt", "0", retain=False)
+                client.publish("pickline/target/belt", "0", retain=True)
                 hold_position()
             elif msg.topic == "pickline/command/clear_belt":
                 client.publish("pickline/clear_belt", "1", retain=False)
@@ -446,7 +446,7 @@ def tick(now):
             started = False
             state = "FAULT"
             alarm = "BELT JAM"
-            client.publish("pickline/target/belt", "0", retain=False)
+            client.publish("pickline/target/belt", "0", retain=True)
             return
 
         if estop or paused:
@@ -480,7 +480,7 @@ def tick(now):
             started = False
             state = "FAULT"
             alarm = "Timeout in " + name
-            client.publish("pickline/target/belt", "0", retain=False)
+            client.publish("pickline/target/belt", "0", retain=True)
 
 
 def publish_status():
@@ -561,6 +561,11 @@ def main():
             publish_status()
             if now - last_alive >= 1.0:
                 client.publish("pickline/plc/alive", "%.0f" % time.time(), retain=True)
+                # Re-assert the belt command every second while the auto cycle
+                # is active so a restarted or briefly-disconnected plant always
+                # converges back to the correct belt state.
+                if started and mode == "auto" and not estop and not paused and not jam_flag:
+                    client.publish("pickline/target/belt", "1", retain=True)
                 last_alive = now
         except Exception as exc:
             print("PLC loop error:", repr(exc), flush=True)
