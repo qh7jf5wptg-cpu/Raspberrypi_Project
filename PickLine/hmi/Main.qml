@@ -792,7 +792,7 @@ ApplicationWindow {
                             spacing: 5
 
                             Text {
-                                text: "GAP   " + num("gap", 0.0).toFixed(1) + " s"
+                                text: "ROUND GAP   " + num("gap", 0.0).toFixed(1) + " s"
                                 font.pixelSize: 11
                                 color: "#637083"
                             }

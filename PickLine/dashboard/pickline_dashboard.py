@@ -135,7 +135,7 @@ HTML = """<!doctype html>
   </div>
   <div class="cards">
     <div class="card">
-      <div class="label">Gap after exit</div>
+      <div class="label">Round gap</div>
       <div class="value" id="gap-val">0.0 s</div>
       <input type="range" id="gap-slider" min="0" max="10" step="0.1" value="0">
     </div>

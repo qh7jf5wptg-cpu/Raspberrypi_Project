@@ -2,17 +2,14 @@
 """Soft PLC for the PickLine: gantry feeds a conveyor with two filling stations.
 
 Auto sequence:
-    pick an empty container from a bin -> carry it to the belt infeed ->
-    release -> choose a route (straight station A / left station B) ->
-    wait for the container to enter a station -> wait the gap ->
-    only start the next pick when a station is free.
+    pick two empty containers from the bins -> drop A at the belt infeed ->
+    drop B after a short pitch -> wait the configured gap -> pick the next
+    two containers. Each container carries its own route: A goes straight to
+    station A, B turns left to station B. The belt infeed gates the drops, so
+    the gantry never places a container onto an occupied spot.
 
-Routing is station-aware:
-    both stations free   -> alternate straight / left, one by one
-    one station full     -> route only to the other (free) station
-    no station free      -> wait until a full container is taken out manually
-
-Take-out is manual: publish to pickline/fill/a/take or pickline/fill/b/take.
+Take-out is handled by the tending robots: publish to pickline/fill/a/take
+or pickline/fill/b/take to clear a full station manually.
 
 Commands:
     mosquitto_pub -t pickline/command/mode  -m auto|manual
@@ -63,6 +60,7 @@ SEQUENCE = [
     ("LOWER_B",       "move", "drop_b"),
     ("RELEASE_B",     "grip_b", None),
     ("LIFT_B",        "move", "drop_b_z"),
+    ("WAIT_ROUND",    "wait_round", None),
 ]
 
 lock = threading.Lock()
@@ -90,7 +88,7 @@ step_started = 0.0
 scanned = ""
 belt_pos = -1.0
 belt_infeed_clear = 1
-gap_start = 0.0
+round_start = 0.0
 
 last = {}
 last_resend = 0.0
@@ -143,7 +141,7 @@ def send_move_target():
 
 def enter_step(index, now):
     global step_idx, step_started, state
-    global gap_start, last_resend
+    global round_start, last_resend
     step_idx = index
     step_started = now
     last_resend = now
@@ -156,9 +154,10 @@ def enter_step(index, now):
         client.publish("pickline/target/grip_b", "0", retain=False)
     elif kind == "grip_a":
         client.publish("pickline/target/grip_a", "1", retain=False)
-        gap_start = now
     elif kind == "grip_b":
         client.publish("pickline/target/grip_b", "1", retain=False)
+    elif kind == "wait_round":
+        round_start = now
 
 
 def hold_position():
@@ -430,9 +429,13 @@ def step_done(now):
         # Do not lower the first gripper until the belt infeed is clear.
         return belt_infeed_clear == 1
     if kind == "wait_gap":
-        # Pitch the two drops apart: the first container must advance past the
-        # safety distance and the configured gap time must have elapsed.
-        return (belt_pos < 0 or belt_pos >= DROP_SPACING) and (now - gap_start >= gap)
+        # Pitch the two drops apart so the containers do not overlap on the
+        # belt. This is a short safety wait, not the user-facing gap setting.
+        return belt_pos < 0 or belt_pos >= DROP_SPACING
+    if kind == "wait_round":
+        # User-facing pacing: wait this long after both containers are dropped
+        # before going back to grab the next two.
+        return now - round_start >= gap
     return at_target()
 
 
