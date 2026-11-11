@@ -24,8 +24,11 @@ PORT = 1883
 ROBOT_MODEL = SixAxisRobot()
 ROBOT_BASES = {"a": (4.6, 1.35, 0.0), "b": (4.3, 2.05, 0.0)}
 
-state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
-         "part_x": -1.0, "part_y": -1.0, "belt": 0.0, "speed": 90.0,
+state = {"x": 0.0, "y": 0.0, "z": 60.0,
+         "grip_a": 1.0, "grip_b": 1.0,
+         "holding_a": 0, "holding_b": 0,
+         "part_a/x": -1.0, "part_a/y": -1.0, "part_b/x": -1.0, "part_b/y": -1.0,
+         "belt": 0.0, "speed": 90.0,
          "diverter": 0.0, "sensor_in": 0, "sensor_out": 0, "sensor_divert": 0,
          "placed": 0, "exited": 0, "state": "IDLE", "side": "down",
          "decision": "STRAIGHT", "gap": 0.5, "volume": 100.0,
@@ -38,7 +41,7 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0, "grip": 1.0, "holding": 0,
          "outfeed/positions": "", "outfeed/types": "", "outfeed/queued": 0,
          "robot/a/holding": 0, "robot/b/holding": 0,
          "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
-         "part_type": "A", "scanned": ""}
+         "scanned": ""}
 
 
 def _num(payload, default=0.0):
@@ -51,17 +54,18 @@ def _num(payload, default=0.0):
 def on_message(_client, _userdata, msg):
     key = msg.topic.split("/", 1)[-1] if msg.topic.startswith("pickline/") else msg.topic
     payload = msg.payload.decode("utf-8", "replace").strip()
-    if key in ("x", "y", "z", "grip", "belt", "speed", "diverter", "part_x",
-               "part_y", "gap", "volume", "fill/a/level", "fill/b/level", "fill/total"):
+    if key in ("x", "y", "z", "grip_a", "grip_b", "belt", "speed", "diverter",
+               "part_a/x", "part_a/y", "part_b/x", "part_b/y",
+               "gap", "volume", "fill/a/level", "fill/b/level", "fill/total"):
         state[key] = _num(payload, state[key])
-    elif key in ("holding", "sensor_in", "sensor_out", "sensor_divert",
+    elif key in ("holding_a", "holding_b", "sensor_in", "sensor_out", "sensor_divert",
                  "placed", "exited", "fill/a/count", "fill/b/count",
                  "fill/a/filled", "fill/a/pickups", "fill/a/pouring",
                  "fill/b/filled", "fill/b/pickups", "fill/b/pouring",
                  "paused", "estop"):
         state[key] = int(_num(payload))
     elif key in ("state", "side", "decision", "fill/a/state", "fill/b/state",
-                 "part_type", "scanned"):
+                 "scanned"):
         state[key] = payload
 
     if key.startswith("robot/"):
@@ -413,32 +417,52 @@ def _update_outfeed():
 
 def apply_twin():
     tool = _obj("ToolHead")
+    tool_b = _obj("ToolHeadB")
     jaw_a = _obj("JawA")
     jaw_b = _obj("JawB")
+    jaw_c = _obj("JawC")
+    jaw_d = _obj("JawD")
+
+    x, y, z = state["x"] * 0.01, state["y"] * 0.01, state["z"] * 0.01
 
     if tool:
-        tool.location = (state["x"] * 0.01, state["y"] * 0.01, state["z"] * 0.01)
+        tool.location = (x, y, z)
+    if tool_b:
+        tool_b.location = (x, y + 1.7, z)
 
     carriage = _obj("Carriage")
     if carriage:
-        carriage.location = (tool.location[0], tool.location[1], 1.08)
+        carriage.location = (x, y, 1.08)
 
-    gap = 0.05 + 0.05 * state["grip"]
+    gap_a = 0.05 + 0.05 * state["grip_a"]
+    gap_b = 0.05 + 0.05 * state["grip_b"]
     if jaw_a:
-        jaw_a.location = (tool.location[0], tool.location[1] + gap, tool.location[2] - 0.16)
+        jaw_a.location = (x, y + gap_a, z - 0.16)
     if jaw_b:
-        jaw_b.location = (tool.location[0], tool.location[1] - gap, tool.location[2] - 0.16)
+        jaw_b.location = (x, y - gap_a, z - 0.16)
+    if jaw_c:
+        jaw_c.location = (x, y + 1.7 + gap_b, z - 0.16)
+    if jaw_d:
+        jaw_d.location = (x, y + 1.7 - gap_b, z - 0.16)
 
     part = _obj("Part")
+    part_b = _obj("PartB")
     if part:
-        _set_color(part, (0.10, 0.75, 0.35, 1.0) if state.get("part_type") == "B"
-                   else (0.98, 0.76, 0.10, 1.0))
-        if state["holding"]:
-            part.location = (tool.location[0], tool.location[1], tool.location[2] - 0.10)
-        elif state["part_x"] >= 0:
-            part.location = (state["part_x"] * 0.01, state["part_y"] * 0.01, 0.06)
+        _set_color(part, (0.98, 0.76, 0.10, 1.0))
+        if state["holding_a"]:
+            part.location = (x, y, z - 0.10)
+        elif state["part_a/x"] >= 0:
+            part.location = (state["part_a/x"] * 0.01, state["part_a/y"] * 0.01, 0.06)
         else:
             part.location = (100.0, 100.0, 100.0)
+    if part_b:
+        _set_color(part_b, (0.10, 0.75, 0.35, 1.0))
+        if state["holding_b"]:
+            part_b.location = (x, y + 1.7, z - 0.10)
+        elif state["part_b/x"] >= 0:
+            part_b.location = (state["part_b/x"] * 0.01, state["part_b/y"] * 0.01, 0.06)
+        else:
+            part_b.location = (100.0, 100.0, 100.0)
 
     gate = _obj("Gate")
     if gate:

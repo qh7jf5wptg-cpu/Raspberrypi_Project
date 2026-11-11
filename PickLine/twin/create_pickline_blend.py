@@ -193,8 +193,17 @@ tool.data.materials.append(tool_mat)
 box("JawA", (0.0, 0.06, 0.42), (0.03, 0.03, 0.08), frame_mat)
 box("JawB", (0.0, -0.06, 0.42), (0.03, 0.03, 0.08), frame_mat)
 
-# The part in flight (hidden until picked).
-box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_mat)
+# Second gripper, offset +Y for the UP bin.
+bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(0.0, 1.7, 0.6))
+tool_b = bpy.context.object
+tool_b.name = "ToolHeadB"
+tool_b.data.materials.append(tool_mat)
+box("JawC", (0.0, 1.76, 0.42), (0.03, 0.03, 0.08), frame_mat)
+box("JawD", (0.0, 1.64, 0.42), (0.03, 0.03, 0.08), frame_mat)
+
+# The two parts in flight (hidden until picked).
+box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_a_mat)
+box("PartB", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04), part_b_mat)
 
 # Sensors.
 box("SensorIn", (0.3, 1.0, 0.08), (0.025, 0.025, 0.025), sensor_mat)

@@ -20,12 +20,22 @@ ApplicationWindow {
         return isNaN(value) ? fallback : value
     }
 
-    function gripState() { return num("grip", 1) > 0.5 ? "OPEN" : "CLOSED" }
-    function holdingState() { return num("holding", 0) > 0 ? "HOLDING PART" : "EMPTY" }
+    function gripState() {
+        var a = num("grip_a", 1) > 0.5 ? "O" : "C"
+        var b = num("grip_b", 1) > 0.5 ? "O" : "C"
+        return a + "/" + b
+    }
+    function holdingState() {
+        var a = num("holding_a", 0) > 0
+        var b = num("holding_b", 0) > 0
+        if (a && b) return "HOLDING A+B"
+        if (a) return "HOLDING A"
+        if (b) return "HOLDING B"
+        return "EMPTY"
+    }
     function beltState() {
-        if (num("holding", 0) > 0) return "waiting (part held)"
-        if (num("part_x", -1) < 0) return "empty"
-        return num("part_y", 0) > 100 ? "part diverting" : "part on belt"
+        if (num("part_a/x", -1) >= 0 || num("part_b/x", -1) >= 0) return "part on belt"
+        return "empty"
     }
     function atBin(binY) {
         return Math.sqrt(Math.pow(num("x", 0) - 260, 2)
@@ -41,7 +51,7 @@ ApplicationWindow {
         return "far"
     }
     function pickHint() {
-        if (num("holding", 0) > 0) return "HOLDING PART"
+        if (num("holding_a", 0) > 0 || num("holding_b", 0) > 0) return "HOLDING PART"
         if (num("z", 0) > 5) return "lower Z to grab"
         if (atBin(20)) return "at DOWN bin — close jaws"
         if (atBin(190)) return "at UP bin — close jaws"
@@ -409,18 +419,17 @@ ApplicationWindow {
                         ctx.fillText("SCAN: " + (scannedType || "--"),
                                      X(30) + 12 * s, Y(100) - 22 * s)
 
-                        // Part.
-                        var holding = num("holding", 0) > 0
-                        var partOnLine = !holding && num("part_x", -1) >= 0
-                        var ppx = holding ? num("x", 0) : num("part_x", -1)
-                        var ppy = holding ? num("y", 0) : num("part_y", -1)
-                        var partType = tag("part_type", "A")
-                        var partColor = partType === "B" ? "#2ecc71" : "#f1c40f"
-                        if (holding || partOnLine) {
-                            var partCx = X(ppx)
-                            var partCy = Y(ppy)
-                            var partR = holding ? 7 * s : 6 * s
-                            ctx.fillStyle = partColor
+                        // Two parts: A (yellow, gripper A) and B (green, gripper B).
+                        function drawPart(key, color, label) {
+                            var held = num("holding_" + key, 0) > 0
+                            var px = held ? num("x", 0) : num("part_" + key + "/x", -1)
+                            var py = held ? num("y", 0) + (key === "b" ? 170 : 0)
+                                          : num("part_" + key + "/y", -1)
+                            if (!held && num("part_" + key + "/x", -1) < 0) return
+                            var partCx = X(px)
+                            var partCy = Y(py)
+                            var partR = held ? 7 * s : 6 * s
+                            ctx.fillStyle = color
                             ctx.beginPath()
                             ctx.arc(partCx, partCy, partR, 0, Math.PI * 2)
                             ctx.fill()
@@ -430,15 +439,10 @@ ApplicationWindow {
                             ctx.fillStyle = "#ffffff"
                             ctx.font = "bold 10px sans-serif"
                             ctx.textAlign = "center"
-                            ctx.fillText(partType, partCx, partCy + 3 * s)
-                            ctx.fillStyle = "#172033"
-                            ctx.font = "bold 11px sans-serif"
-                            ctx.textAlign = "center"
-                            if (holding)
-                                ctx.fillText("HOLDING " + partType, partCx, partCy - 12 * s)
-                            else
-                                ctx.fillText("PART " + partType, partCx, partCy - 12 * s)
+                            ctx.fillText(label, partCx, partCy + 3 * s)
                         }
+                        drawPart("a", "#f1c40f", "A")
+                        drawPart("b", "#2ecc71", "B")
 
                         // Gantry tool crosshair.
                         var tx = X(num("x", 0))
@@ -531,13 +535,13 @@ ApplicationWindow {
                                 text: "GRIPPER: " + holdingState() + "   ·   jaws " + gripState()
                                 font.pixelSize: 12
                                 font.bold: true
-                                color: num("holding", 0) > 0 ? "#27ae60" : "#637083"
+                                color: (num("holding_a", 0) > 0 || num("holding_b", 0) > 0) ? "#27ae60" : "#637083"
                             }
                             Text {
                                 text: "PICK: " + pickHint()
                                 font.pixelSize: 12
                                 font.bold: true
-                                color: num("holding", 0) > 0 ? "#27ae60"
+                                color: (num("holding_a", 0) > 0 || num("holding_b", 0) > 0) ? "#27ae60"
                                        : (atBin(20) || atBin(190)) ? "#27ae60"
                                        : "#e67e22"
                             }
