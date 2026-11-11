@@ -41,6 +41,7 @@ LOOP_HZ = 10.0
 PICK_DOWN = (260.0, 20.0, 0.0)
 PICK_UP = (260.0, 190.0, 0.0)
 DROP = (0.0, 100.0, 0.0)
+DROP_B = (0.0, -70.0, 0.0)
 TRAVEL_Z = 60.0
 TOL = 2.0
 STEP_TIMEOUT = 15.0
@@ -50,12 +51,16 @@ DEFAULT_GAP = 0.5
 SEQUENCE = [
     ("TO_PICK",       "move", "pick_z"),
     ("LOWER_PICK",    "move", "pick"),
-    ("GRIP",          "grip", 0),
+    ("GRIP",          "grip", None),
     ("LIFT_PICK",     "move", "pick_z"),
-    ("TO_DROP",       "move", "drop_z"),
-    ("LOWER_DROP",    "move", "drop"),
-    ("RELEASE",       "grip", 1),
-    ("LIFT_DROP",     "move", "drop_z"),
+    ("TO_DROP_A",     "move", "drop_a_z"),
+    ("LOWER_A",       "move", "drop_a"),
+    ("RELEASE_A",     "grip_a", None),
+    ("LIFT_A",        "move", "drop_a_z"),
+    ("TO_DROP_B",     "move", "drop_b_z"),
+    ("LOWER_B",       "move", "drop_b"),
+    ("RELEASE_B",     "grip_b", None),
+    ("LIFT_B",        "move", "drop_b_z"),
     ("WAIT_EXIT",     "wait_exit", None),
     ("WAIT_STATION",  "wait_station", None),
 ]
@@ -63,7 +68,8 @@ SEQUENCE = [
 lock = threading.Lock()
 client = None
 
-tags = {"x": 0.0, "y": 0.0, "z": 60.0, "busy": 0, "holding": 0, "exited": 0}
+tags = {"x": 0.0, "y": 0.0, "z": 60.0, "busy": 0,
+        "holding_a": 0, "holding_b": 0, "exited": 0}
 station = {"a": "EMPTY", "b": "EMPTY"}
 pickups = {"a": 2, "b": 5}
 jam_flag = 0
@@ -74,15 +80,10 @@ state = "IDLE"
 mode = "auto"
 started = False
 gap = DEFAULT_GAP
-side = "down"
-side_mode = "auto"
-side_alt = False
+side = "both"
+side_mode = "both"
 route_mode = "auto"
-alternate_flag = False
-fill_target = "a"       # auto mode fills this station to completion first
-fill_counts = {"a": 0, "b": 0}
-fill_target_seen = 0
-decision = "STRAIGHT"
+decision = "A+B"
 alarm = ""
 step_idx = 0
 step_started = 0.0
@@ -102,40 +103,19 @@ place_owner = None       # 'a' or 'b' currently placing on the outfeed, else Non
 infeed_clear = 1
 
 
-def current_pick():
-    return PICK_UP if side == "up" else PICK_DOWN
-
-
-def choose_side():
-    global side, side_alt, fill_target, fill_target_seen
-    if side_mode == "auto":
-        # Batch fill: when the target tank has completed a fill, switch to the
-        # other tank. The bin always matches the destination (A from DOWN, B
-        # from UP) so the two part types are easy to distinguish.
-        if fill_counts[fill_target] > fill_target_seen:
-            fill_target = "b" if fill_target == "a" else "a"
-            fill_target_seen = fill_counts[fill_target]
-        side = "down" if fill_target == "a" else "up"
-    elif side_mode == "down":
-        side = "down"
-    elif side_mode == "up":
-        side = "up"
-    else:
-        side_alt = not side_alt
-        side = "up" if side_alt else "down"
-
-
 def move_target(kind):
     if kind == "pick":
-        x, y, _z = current_pick()
-        return (x, y, 0.0)
+        return (PICK_DOWN[0], PICK_DOWN[1], 0.0)
     if kind == "pick_z":
-        x, y, _z = current_pick()
-        return (x, y, TRAVEL_Z)
-    if kind == "drop":
+        return (PICK_DOWN[0], PICK_DOWN[1], TRAVEL_Z)
+    if kind == "drop_a":
         return DROP
-    if kind == "drop_z":
+    if kind == "drop_a_z":
         return (DROP[0], DROP[1], TRAVEL_Z)
+    if kind == "drop_b":
+        return DROP_B
+    if kind == "drop_b_z":
+        return (DROP_B[0], DROP_B[1], TRAVEL_Z)
     return (0.0, 0.0, TRAVEL_Z)
 
 
@@ -161,38 +141,15 @@ def send_move_target():
     client.publish("pickline/target/z", "%.1f" % tz, retain=False)
 
 
-def apply_diverter(value):
-    global decision
-    decision = "LEFT" if value else "STRAIGHT"
-    client.publish("pickline/target/diverter", "1" if value else "0", retain=False)
-
-
-def decide_route():
-    if route_mode == "straight":
-        apply_diverter(False)
-    elif route_mode == "left":
-        apply_diverter(True)
-    else:
-        # Auto / alternate: the bin determines the destination.
-        # DOWN bin -> tank A (straight), UP bin -> tank B (left).
-        apply_diverter(side == "up")
-
-
 def station_available():
-    if route_mode == "straight":
-        return station["a"] not in ("FULL", "FAULT")
-    if route_mode == "left":
-        return station["b"] not in ("FULL", "FAULT")
-    # The gantry keeps feeding as long as either station is free; the batch
-    # target in choose_side() switches it to the other station immediately
-    # after a fill completes, so the robots unload in the background.
+    # Dual grippers feed both stations every cycle; wait only if both blocked.
     return (station["a"] not in ("FULL", "FAULT")
             or station["b"] not in ("FULL", "FAULT"))
 
 
 def enter_step(index, now):
     global step_idx, step_started, state
-    global exit_base, part_exited, part_exited_at, last_resend
+    global exit_base, last_resend
     step_idx = index
     step_started = now
     last_resend = now
@@ -201,12 +158,14 @@ def enter_step(index, now):
     if kind == "move":
         send_move_target()
     elif kind == "grip":
-        client.publish("pickline/target/grip", str(arg), retain=False)
+        client.publish("pickline/target/grip_a", "0", retain=False)
+        client.publish("pickline/target/grip_b", "0", retain=False)
+    elif kind == "grip_a":
+        client.publish("pickline/target/grip_a", "1", retain=False)
+    elif kind == "grip_b":
+        client.publish("pickline/target/grip_b", "1", retain=False)
     elif kind == "wait_exit":
-        decide_route()
         exit_base = tags["exited"]
-        part_exited = False
-        part_exited_at = 0.0
 
 
 def hold_position():
@@ -307,21 +266,14 @@ def tick_robots(_now):
 
 
 def start_auto():
-    global started, alarm, exit_base, part_exited, part_exited_at, alternate_flag, jam_flag
-    global fill_target, fill_target_seen
+    global started, alarm, exit_base, jam_flag
     started = True
     alarm = ""
-    alternate_flag = False
-    fill_target = "a"
-    fill_target_seen = fill_counts["a"]
     jam_flag = 0
     # Clear any part on the belt but keep fill stations and production counts.
     client.publish("pickline/clear_belt", "1", retain=False)
     client.publish("pickline/target/belt", "1", retain=False)
     exit_base = 0
-    part_exited = False
-    part_exited_at = 0.0
-    choose_side()
     enter_step(0, time.monotonic())
 
 
@@ -330,12 +282,11 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/y")
     cli.subscribe("pickline/z")
     cli.subscribe("pickline/busy")
-    cli.subscribe("pickline/holding")
+    cli.subscribe("pickline/holding_a")
+    cli.subscribe("pickline/holding_b")
     cli.subscribe("pickline/exited")
     cli.subscribe("pickline/fill/a/state")
     cli.subscribe("pickline/fill/b/state")
-    cli.subscribe("pickline/fill/a/count")
-    cli.subscribe("pickline/fill/b/count")
     cli.subscribe("pickline/fill/a/pickups")
     cli.subscribe("pickline/fill/b/pickups")
     cli.subscribe("pickline/jam")
@@ -348,7 +299,7 @@ def on_connect(cli, *_args):
 
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
-    global paused, estop, part_on_line, infeed_clear, fill_target, fill_target_seen
+    global paused, estop, part_on_line, infeed_clear
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -361,18 +312,16 @@ def on_message(_cli, _userdata, msg):
                     tags["z"] = float(payload)
                 elif msg.topic == "pickline/busy":
                     tags["busy"] = int(float(payload or 0))
-                elif msg.topic == "pickline/holding":
-                    tags["holding"] = int(float(payload or 0))
+                elif msg.topic == "pickline/holding_a":
+                    tags["holding_a"] = int(float(payload or 0))
+                elif msg.topic == "pickline/holding_b":
+                    tags["holding_b"] = int(float(payload or 0))
                 elif msg.topic == "pickline/exited":
                     tags["exited"] = int(float(payload or 0))
                 elif msg.topic == "pickline/fill/a/state":
                     station["a"] = payload
                 elif msg.topic == "pickline/fill/b/state":
                     station["b"] = payload
-                elif msg.topic == "pickline/fill/a/count":
-                    fill_counts["a"] = int(float(payload or 0))
-                elif msg.topic == "pickline/fill/b/count":
-                    fill_counts["b"] = int(float(payload or 0))
                 elif msg.topic == "pickline/fill/a/pickups":
                     pickups["a"] = int(float(payload or 0))
                 elif msg.topic == "pickline/fill/b/pickups":
@@ -417,8 +366,6 @@ def on_message(_cli, _userdata, msg):
                 alarm = ""
                 step_idx = 0
                 state = "IDLE"
-                fill_target = "a"
-                fill_target_seen = 0
                 estop = False
                 paused = False
                 client.publish("pickline/target/belt", "0", retain=False)
@@ -461,15 +408,15 @@ def on_message(_cli, _userdata, msg):
 
 
 def step_done(now):
-    global part_exited, part_exited_at
-    name, kind, arg = SEQUENCE[step_idx]
+    name, kind, _arg = SEQUENCE[step_idx]
     if kind == "grip":
-        return (tags["holding"] == 1) if arg == 0 else (tags["holding"] == 0)
+        return tags["holding_a"] == 1 and tags["holding_b"] == 1
+    if kind == "grip_a":
+        return tags["holding_a"] == 0
+    if kind == "grip_b":
+        return tags["holding_b"] == 0
     if kind == "wait_exit":
-        if not part_exited and tags["exited"] > exit_base:
-            part_exited = True
-            part_exited_at = now
-        return part_exited and (now - part_exited_at >= gap)
+        return tags["exited"] >= exit_base + 2
     if kind == "wait_station":
         return station_available()
     return at_target()
@@ -497,19 +444,20 @@ def tick(now):
             step_idx += 1
             if step_idx >= len(SEQUENCE):
                 step_idx = 0
-                choose_side()
             enter_step(step_idx, now)
             return
 
         # Re-send the current step command periodically in case the plant missed it.
-        if kind in ("move", "grip", "wait_exit") and now - last_resend >= 1.0:
+        if kind in ("move", "grip", "grip_a", "grip_b") and now - last_resend >= 1.0:
             if kind == "move":
                 send_move_target()
             elif kind == "grip":
-                client.publish("pickline/target/grip", str(arg), retain=False)
-            elif kind == "wait_exit":
-                client.publish("pickline/target/diverter",
-                               "1" if decision == "LEFT" else "0", retain=False)
+                client.publish("pickline/target/grip_a", "0", retain=False)
+                client.publish("pickline/target/grip_b", "0", retain=False)
+            elif kind == "grip_a":
+                client.publish("pickline/target/grip_a", "1", retain=False)
+            elif kind == "grip_b":
+                client.publish("pickline/target/grip_b", "1", retain=False)
             last_resend = now
 
         # Move/grip steps have a hard timeout. WAIT_EXIT and WAIT_STATION wait

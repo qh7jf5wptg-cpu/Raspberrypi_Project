@@ -49,11 +49,13 @@ PICKUPS_MIN = 1
 PICKUPS_MAX = 10
 POUR_TIME = 0.6         # seconds the pour stream is visible after a container
 
-X_MAX, Y_MAX, Z_MAX = 300.0, 220.0, 100.0
+X_MAX, Y_MIN, Y_MAX, Z_MAX = 300.0, -100.0, 220.0, 100.0
 PICK_DOWN = (260.0, 20.0, 0.0)
 PICK_UP = (260.0, 190.0, 0.0)
 DROP = (0.0, 100.0, 0.0)        # belt infeed (belt runs along y = 100)
 PICK_TOL = 8.0
+GRIP_OFFSET_Y = 170.0           # gripper B sits +170 mm above gripper A
+DROP_B = (0.0, DROP[1] - GRIP_OFFSET_Y, 0.0)  # gantry pose so gripper B is at DROP
 
 BELT_LEN = 400.0                # belt runs x = 0 .. 400 at y = 100
 STRAIGHT_END = 460.0            # station A sits beyond the straight belt end
@@ -70,9 +72,9 @@ lock = threading.Lock()
 
 pos = [0.0, 0.0, 60.0]
 target = [0.0, 0.0, 60.0]
-grip = 1.0
-grip_target = 1.0
-part_held = False
+grip = [1.0, 1.0]               # [A, B], 1 = open
+grip_target = [1.0, 1.0]
+held = [False, False]           # [A, B]
 placed = 0
 
 belt = 0.0
@@ -81,11 +83,8 @@ belt_speed = BELT_SPEED
 diverter = 0.0
 diverter_target = 0.0
 
-part_lane = "none"              # none | belt | straight | left | wait_a | wait_b
-part_x = -1.0
-part_y = -1.0
+parts = []                      # containers on the line: lane, x, y, type
 exited = 0
-part_type = "A"                 # A (from DOWN bin) or B (from UP bin)
 scanned = ""                    # last type read by the belt scanner
 
 volume = VOLUME
@@ -157,18 +156,17 @@ def clear_station(key):
 
 
 def reset_plant():
-    global part_held, placed, part_lane, part_x, part_y, exited, total, jam
-    global part_type, scanned
-    part_held = False
+    global placed, exited, total, jam, scanned
     placed = 0
-    part_lane = "none"
-    part_x = -1.0
-    part_y = -1.0
     exited = 0
-    part_type = "A"
     scanned = ""
     total = 0.0
     jam = False
+    parts.clear()
+    for i in (0, 1):
+        held[i] = False
+        grip[i] = 1.0
+        grip_target[i] = 1.0
     for key in ("a", "b"):
         fill[key]["state"] = "EMPTY"
         fill[key]["level"] = 0.0
@@ -180,12 +178,10 @@ def reset_plant():
 
 
 def clear_belt():
-    global part_lane, part_x, part_y, placed
-    if part_lane in ("belt", "straight", "left", "wait_a", "wait_b"):
-        part_lane = "none"
-        part_x = -1.0
-        part_y = -1.0
-        placed = max(0, placed - 1)
+    global placed
+    removed = len(parts)
+    parts.clear()
+    placed = max(0, placed - removed)
 
 
 def on_connect(client, *_args):
@@ -206,11 +202,17 @@ def on_message(_client, _userdata, msg):
             if msg.topic == "pickline/target/x":
                 target[0] = clamp(float(payload), 0.0, X_MAX)
             elif msg.topic == "pickline/target/y":
-                target[1] = clamp(float(payload), 0.0, Y_MAX)
+                target[1] = clamp(float(payload), Y_MIN, Y_MAX)
             elif msg.topic == "pickline/target/z":
                 target[2] = clamp(float(payload), 0.0, Z_MAX)
             elif msg.topic == "pickline/target/grip":
-                grip_target = 1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
+                value = 1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
+                grip_target[0] = value
+                grip_target[1] = value
+            elif msg.topic == "pickline/target/grip_a":
+                grip_target[0] = 1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
+            elif msg.topic == "pickline/target/grip_b":
+                grip_target[1] = 1.0 if payload.lower() in ("1", "true", "on", "open") else 0.0
             elif msg.topic == "pickline/target/belt":
                 belt_target = 1.0 if payload.lower() in ("1", "true", "on", "run") else 0.0
             elif msg.topic == "pickline/target/diverter":
@@ -270,8 +272,8 @@ def on_message(_client, _userdata, msg):
             print("Plant on_message error:", repr(exc), flush=True)
 
 
-def enter_station(key):
-    global part_lane, part_x, part_y, exited, total
+def enter_station(part, key):
+    global exited, total
     st = fill[key]
     st["filled"] += 1
     st["level"] = st["filled"] * volume
@@ -283,16 +285,13 @@ def enter_station(key):
         total += st["level"]
     else:
         st["state"] = "FILLING"
-    part_lane = "none"
-    part_x = -1.0
-    part_y = -1.0
+    part["lane"] = "done"
     exited += 1
 
 
 def step(dt):
-    global grip, part_held, placed, belt, diverter, part_lane, part_x, part_y
-    global total, sensor_in, sensor_out, sensor_divert, outfeed_count
-    global part_type, scanned
+    global placed, belt, diverter, total, sensor_in, sensor_out, sensor_divert
+    global outfeed_count, scanned
 
     with lock:
         for i in range(3):
@@ -303,26 +302,31 @@ def step(dt):
             else:
                 pos[i] += math.copysign(max_step, error)
 
-        if grip < grip_target:
-            grip = min(grip_target, grip + dt / GRIP_TIME)
-        elif grip > grip_target:
-            grip = max(grip_target, grip - dt / GRIP_TIME)
+        # Two grippers open/close independently (A lower, B upper by +Y).
+        for i in (0, 1):
+            if grip[i] < grip_target[i]:
+                grip[i] = min(grip_target[i], grip[i] + dt / GRIP_TIME)
+            elif grip[i] > grip_target[i]:
+                grip[i] = max(grip_target[i], grip[i] - dt / GRIP_TIME)
 
-        if grip <= 0.05 and not part_held and pos[2] <= 5.0:
+        # Gripper A picks the DOWN bin (type A); gripper B, offset +Y, picks UP.
+        if grip[0] <= 0.05 and not held[0] and pos[2] <= 5.0:
             if near(pos, PICK_DOWN, PICK_TOL):
-                part_held = True
-                part_type = "A"
-            elif near(pos, PICK_UP, PICK_TOL):
-                part_held = True
-                part_type = "B"
+                held[0] = True
+        if grip[1] <= 0.05 and not held[1] and pos[2] <= 5.0:
+            if near(pos, PICK_DOWN, PICK_TOL):
+                held[1] = True
 
-        if grip >= 0.95 and part_held:
-            part_held = False
-            if near(pos, DROP, PICK_TOL) and pos[2] <= 5.0:
-                placed += 1
-                part_lane = "belt"
-                part_x = 0.0
-                part_y = DROP[1]
+        # Gripper A releases at the belt infeed.
+        if grip[0] >= 0.95 and held[0] and near(pos, DROP, PICK_TOL) and pos[2] <= 5.0:
+            held[0] = False
+            placed += 1
+            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1], "type": "A"})
+        # Gripper B releases at the belt infeed (gantry sits at DROP_B).
+        if grip[1] >= 0.95 and held[1] and near(pos, DROP_B, PICK_TOL) and pos[2] <= 5.0:
+            held[1] = False
+            placed += 1
+            parts.append({"lane": "belt", "x": 0.0, "y": DROP[1], "type": "B"})
 
         if belt < belt_target:
             belt = min(belt_target, belt + dt / BELT_TIME)
@@ -337,39 +341,43 @@ def step(dt):
         speed = belt_speed * belt
         part_speed = 0.0 if jam else speed
 
-        # Container: belt -> approach lane -> fill station.
-        if part_lane == "belt":
-            part_x += part_speed * dt
-            if part_x >= BELT_LEN:
-                if diverter > 0.5:
-                    part_lane = "left"
-                    part_x = BELT_LEN
-                    part_y = DROP[1]
-                else:
-                    part_lane = "straight"
-                    part_y = DROP[1]
-        elif part_lane == "straight":
-            part_x += part_speed * dt
-            if part_x >= STRAIGHT_END:
+        # Move every container along the line; route by part type (A straight,
+        # B left) instead of a single global diverter.
+        for part in parts:
+            if part["lane"] == "belt":
+                part["x"] += part_speed * dt
+                if part["x"] >= BELT_LEN:
+                    if part["type"] == "B":
+                        part["lane"] = "left"
+                        part["x"] = BELT_LEN
+                        part["y"] = DROP[1]
+                    else:
+                        part["lane"] = "straight"
+                        part["y"] = DROP[1]
+            elif part["lane"] == "straight":
+                part["x"] += part_speed * dt
+                if part["x"] >= STRAIGHT_END:
+                    if fill["a"]["state"] not in ("FULL", "FAULT"):
+                        enter_station(part, "a")
+                    else:
+                        part["lane"] = "wait_a"
+                        part["x"] = STRAIGHT_END
+            elif part["lane"] == "left":
+                part["y"] += part_speed * dt
+                if part["y"] >= LEFT_END_Y:
+                    if fill["b"]["state"] not in ("FULL", "FAULT"):
+                        enter_station(part, "b")
+                    else:
+                        part["lane"] = "wait_b"
+                        part["y"] = LEFT_END_Y
+            elif part["lane"] == "wait_a":
                 if fill["a"]["state"] not in ("FULL", "FAULT"):
-                    enter_station("a")
-                else:
-                    part_lane = "wait_a"
-                    part_x = STRAIGHT_END
-        elif part_lane == "left":
-            part_y += part_speed * dt
-            if part_y >= LEFT_END_Y:
+                    enter_station(part, "a")
+            elif part["lane"] == "wait_b":
                 if fill["b"]["state"] not in ("FULL", "FAULT"):
-                    enter_station("b")
-                else:
-                    part_lane = "wait_b"
-                    part_y = LEFT_END_Y
-        elif part_lane == "wait_a":
-            if fill["a"]["state"] not in ("FULL", "FAULT"):
-                enter_station("a")
-        elif part_lane == "wait_b":
-            if fill["b"]["state"] not in ("FULL", "FAULT"):
-                enter_station("b")
+                    enter_station(part, "b")
+
+        parts[:] = [p for p in parts if p["lane"] != "done"]
 
         # Track the pour animation and detect overfill at each station.
         for key in ("a", "b"):
@@ -386,11 +394,12 @@ def step(dt):
                 st["alarm"] = "OVERFILL"
                 st["pouring"] = 0
 
-        sensor_in = 1 if (part_lane == "belt" and abs(part_x - SENSOR_IN_X) < SENSOR_TOL) else 0
-        sensor_out = 1 if (part_lane == "belt" and abs(part_x - SENSOR_OUT_X) < SENSOR_TOL) else 0
-        sensor_divert = 1 if (part_lane == "left" and abs(part_y - SENSOR_DIVERT_Y) < SENSOR_TOL) else 0
-        if sensor_in and part_type:
-            scanned = part_type
+        sensor_in = 1 if any(p["lane"] == "belt" and abs(p["x"] - SENSOR_IN_X) < SENSOR_TOL for p in parts) else 0
+        sensor_out = 1 if any(p["lane"] == "belt" and abs(p["x"] - SENSOR_OUT_X) < SENSOR_TOL for p in parts) else 0
+        sensor_divert = 1 if any(p["lane"] == "left" and abs(p["y"] - SENSOR_DIVERT_Y) < SENSOR_TOL for p in parts) else 0
+        for p in parts:
+            if p["lane"] == "belt" and abs(p["x"] - SENSOR_IN_X) < SENSOR_TOL:
+                scanned = p["type"]
 
         # Six-axis tending robots: move joints toward the TCP target, operate
         # the gripper, and unload full containers onto the outfeed conveyor.
@@ -450,26 +459,38 @@ def snapshot():
     with lock:
         busy = any(abs(target[i] - pos[i]) > 0.2 for i in range(3))
 
-        if part_held:
-            px, py, pz = pos
-        elif part_lane in ("belt", "straight", "left", "wait_a", "wait_b"):
-            px, py, pz = part_x, part_y, 0.0
-        else:
-            px, py, pz = -1.0, -1.0, -1.0
+        def part_state(idx, type_key):
+            if held[idx]:
+                gy = pos[1] + (GRIP_OFFSET_Y if idx == 1 else 0.0)
+                return pos[0], gy, pos[2]
+            for p in parts:
+                if p["type"] == type_key:
+                    return p["x"], p["y"], 0.0
+            return -1.0, -1.0, -1.0
 
-        belt_pos = part_x if part_lane == "belt" else -1.0
+        ax, ay, az = part_state(0, "A")
+        bx, by, bz = part_state(1, "B")
+        belt_part = next((p for p in parts if p["lane"] == "belt"), None)
+        belt_pos = belt_part["x"] if belt_part else -1.0
 
         values = {
             "pickline/x": "%.2f" % pos[0],
             "pickline/y": "%.2f" % pos[1],
             "pickline/z": "%.2f" % pos[2],
-            "pickline/grip": "%.2f" % grip,
-            "pickline/holding": "1" if part_held else "0",
-            "pickline/part_x": "%.2f" % px,
-            "pickline/part_y": "%.2f" % py,
-            "pickline/part_z": "%.2f" % pz,
-            "pickline/part_on_line": "1" if part_lane != "none" else "0",
-            "pickline/part_type": part_type,
+            "pickline/grip_a": "%.2f" % grip[0],
+            "pickline/grip_b": "%.2f" % grip[1],
+            "pickline/holding_a": "1" if held[0] else "0",
+            "pickline/holding_b": "1" if held[1] else "0",
+            "pickline/part_a/x": "%.2f" % ax,
+            "pickline/part_a/y": "%.2f" % ay,
+            "pickline/part_a/z": "%.2f" % az,
+            "pickline/part_a/type": "A",
+            "pickline/part_a/on_line": "1" if ax >= 0 else "0",
+            "pickline/part_b/x": "%.2f" % bx,
+            "pickline/part_b/y": "%.2f" % by,
+            "pickline/part_b/z": "%.2f" % bz,
+            "pickline/part_b/type": "B",
+            "pickline/part_b/on_line": "1" if bx >= 0 else "0",
             "pickline/scanned": scanned,
             "pickline/belt": "%.2f" % belt,
             "pickline/belt_pos": "%.1f" % belt_pos,
