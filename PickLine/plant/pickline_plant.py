@@ -600,8 +600,11 @@ def step(dt):
             else:
                 r["y"] = max(target_y, r["y"] - step_y)
             if abs(r["y"] - target_y) < 0.5:
-                reject_bin[r["line"]] += 1
-                r["done"] = True
+                # The bin has a capacity; once full, keep the reject waiting
+                # at the bin instead of counting it in.
+                if reject_bin["a"] + reject_bin["b"] < G.REJECT_FULL:
+                    reject_bin[r["line"]] += 1
+                    r["done"] = True
         rejects[:] = [r for r in rejects if not r.get("done")]
 
 
