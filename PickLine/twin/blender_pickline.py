@@ -196,6 +196,10 @@ def _ensure_part_objects():
                   (0.98, 0.76, 0.10))
         _make_box("PartB", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04),
                   (0.10, 0.75, 0.35))
+        _make_box("PartHeld", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04),
+                  (0.98, 0.76, 0.10))
+        _make_box("PartBheld", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04),
+                  (0.10, 0.75, 0.35))
     except Exception:
         pass
 
@@ -631,22 +635,32 @@ def apply_twin():
 
     part = _obj("Part")
     part_b = _obj("PartB")
+    part_held = _obj("PartHeld")
+    part_b_held = _obj("PartBheld")
     if part:
         _set_color(part, (0.98, 0.76, 0.10, 1.0))
-        if state["holding_a"]:
-            part.location = (x, y, z - 0.10)
-        elif state["part_a/x"] >= 0:
+        if state["part_a/x"] >= 0:
             part.location = (state["part_a/x"] * 0.01, state["part_a/y"] * 0.01, 0.06)
         else:
             part.location = (100.0, 100.0, 100.0)
     if part_b:
         _set_color(part_b, (0.10, 0.75, 0.35, 1.0))
-        if state["holding_b"]:
-            part_b.location = (x, y + 1.7, z - 0.10)
-        elif state["part_b/x"] >= 0:
+        if state["part_b/x"] >= 0:
             part_b.location = (state["part_b/x"] * 0.01, state["part_b/y"] * 0.01, 0.06)
         else:
             part_b.location = (100.0, 100.0, 100.0)
+    if part_held:
+        _set_color(part_held, (0.98, 0.76, 0.10, 1.0))
+        if state["holding_a"]:
+            part_held.location = (x, y, z - 0.10)
+        else:
+            part_held.location = (100.0, 100.0, 100.0)
+    if part_b_held:
+        _set_color(part_b_held, (0.10, 0.75, 0.35, 1.0))
+        if state["holding_b"]:
+            part_b_held.location = (x, y + 1.7, z - 0.10)
+        else:
+            part_b_held.location = (100.0, 100.0, 100.0)
 
     gate = _obj("Gate")
     if gate:

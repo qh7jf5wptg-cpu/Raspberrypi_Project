@@ -497,19 +497,14 @@ ApplicationWindow {
                         ctx.fillText("SCAN: " + (scannedType || "--"),
                                      X(30) + 12 * s, Y(100) - 22 * s)
 
-                        // Two parts: A (yellow, gripper A) and B (green, gripper B).
-                        function drawPart(key, color, label) {
-                            var held = num("holding_" + key, 0) > 0
-                            var px = held ? num("x", 0) : num("part_" + key + "/x", -1)
-                            var py = held ? num("y", 0) + (key === "b" ? 170 : 0)
-                                          : num("part_" + key + "/y", -1)
-                            if (!held && num("part_" + key + "/x", -1) < 0) return
+                        // Containers on the line (belt / lanes) plus the ones
+                        // currently held by the gantry.
+                        function paintPart(px, py, color, label, r) {
                             var partCx = X(px)
                             var partCy = Y(py)
-                            var partR = held ? 7 * s : 6 * s
                             ctx.fillStyle = color
                             ctx.beginPath()
-                            ctx.arc(partCx, partCy, partR, 0, Math.PI * 2)
+                            ctx.arc(partCx, partCy, r, 0, Math.PI * 2)
                             ctx.fill()
                             ctx.strokeStyle = "#172033"
                             ctx.lineWidth = 2
@@ -519,8 +514,20 @@ ApplicationWindow {
                             ctx.textAlign = "center"
                             ctx.fillText(label, partCx, partCy + 3 * s)
                         }
-                        drawPart("a", "#f1c40f", "A")
-                        drawPart("b", "#2ecc71", "B")
+                        function drawBeltPart(key, color, label) {
+                            var px = num("part_" + key + "/x", -1)
+                            if (px < 0) return
+                            paintPart(px, num("part_" + key + "/y", -1), color, label, 6 * s)
+                        }
+                        function drawHeldPart(key, color, label) {
+                            if (num("holding_" + key, 0) <= 0) return
+                            var py = num("y", 0) + (key === "b" ? 170 : 0)
+                            paintPart(num("x", 0), py, color, label, 7 * s)
+                        }
+                        drawBeltPart("a", "#f1c40f", "A")
+                        drawBeltPart("b", "#2ecc71", "B")
+                        drawHeldPart("a", "#f1c40f", "A")
+                        drawHeldPart("b", "#2ecc71", "B")
 
                         // Gantry tool crosshair.
                         var holding = num("holding_a", 0) > 0 || num("holding_b", 0) > 0

@@ -623,17 +623,14 @@ def snapshot():
     with lock:
         busy = any(abs(target[i] - pos[i]) > 0.2 for i in range(3))
 
-        def part_state(idx, type_key):
-            if held[idx]:
-                gy = pos[1] + (GRIP_OFFSET_Y if idx == 1 else 0.0)
-                return pos[0], gy, pos[2]
+        def part_state(type_key):
             for p in parts:
                 if p["type"] == type_key:
                     return p["x"], p["y"], 0.0
             return -1.0, -1.0, -1.0
 
-        ax, ay, az = part_state(0, "A")
-        bx, by, bz = part_state(1, "B")
+        ax, ay, az = part_state("A")
+        bx, by, bz = part_state("B")
         belt_part = next((p for p in parts if p["lane"] == "belt"), None)
         belt_pos = belt_part["x"] if belt_part else -1.0
         belt_infeed_clear = 1
