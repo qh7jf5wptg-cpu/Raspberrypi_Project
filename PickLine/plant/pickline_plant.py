@@ -328,11 +328,12 @@ def on_message(_client, _userdata, msg):
                 reject_bin["a"] = 0
                 reject_bin["b"] = 0
                 rejects.clear()
-                # Re-classify any rejects still in transit on the outfeeds as
-                # good so nothing re-enters the bin right after clearing.
+                # Discard any reject-bound containers still waiting on the
+                # outfeeds so nothing re-enters the bin right after clearing.
                 for key in ("a", "b"):
-                    for c in lines[key]["outfeed"]:
-                        c["ok"] = True
+                    lines[key]["outfeed"] = [
+                        c for c in lines[key]["outfeed"] if c["ok"]
+                    ]
             elif msg.topic == "pickline/fault/jam":
                 jam = payload.lower() in ("1", "true", "on", "jam")
             elif msg.topic == "pickline/fault/clear":
@@ -551,7 +552,11 @@ def step(dt):
             for c in line["outfeed"]:
                 nx = c["x"] + G.OUTFEED_SPEED * dt
                 if not c["ok"] and nx >= G.INSPECT_X:
-                    rejects.append({"line": key, "x": G.INSPECT_X, "y": line_y})
+                    if reject_bin["a"] + reject_bin["b"] < G.REJECT_FULL:
+                        rejects.append({"line": key, "x": G.INSPECT_X, "y": line_y})
+                    else:
+                        # Bin is full: hold the reject at the inspection gate.
+                        advanced.append({"x": G.INSPECT_X, "ok": False})
                 elif nx >= lift_x:
                     if line["lift_state"] == "IDLE":
                         line["lift_state"] = "LOADING"
