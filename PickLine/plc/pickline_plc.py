@@ -88,6 +88,7 @@ step_started = 0.0
 scanned = ""
 belt_pos = -1.0
 belt_infeed_clear = 1
+reject_full = 0
 round_start = 0.0
 
 last = {}
@@ -284,6 +285,7 @@ def on_connect(cli, *_args):
     cli.subscribe("pickline/scanned")
     cli.subscribe("pickline/belt_pos")
     cli.subscribe("pickline/belt_infeed_clear")
+    cli.subscribe("pickline/reject/full")
     cli.subscribe("pickline/robot/+/tcp/+")
     cli.subscribe("pickline/robot/+/holding")
     cli.subscribe("pickline/outfeed/+/infeed_clear")
@@ -293,7 +295,7 @@ def on_connect(cli, *_args):
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
     global paused, estop, part_on_line, infeed_clear, decision, scanned, belt_pos
-    global belt_infeed_clear
+    global belt_infeed_clear, reject_full
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -337,6 +339,8 @@ def on_message(_cli, _userdata, msg):
                     belt_pos = float(payload)
                 elif msg.topic == "pickline/belt_infeed_clear":
                     belt_infeed_clear = int(float(payload or 0))
+                elif msg.topic == "pickline/reject/full":
+                    reject_full = int(float(payload or 0))
                 elif msg.topic.startswith("pickline/robot/") and "/tcp/" in msg.topic:
                     key = msg.topic.split("/")[2]
                     axis = msg.topic.split("/")[4]
@@ -450,6 +454,16 @@ def tick(now):
             alarm = "BELT JAM"
             client.publish("pickline/target/belt", "0", retain=True)
             return
+
+        if reject_full:
+            if state != "REJECT_FULL":
+                state = "REJECT_FULL"
+                hold_position()
+                client.publish("pickline/target/belt", "0", retain=True)
+            return
+
+        if state == "REJECT_FULL":
+            state = SEQUENCE[step_idx][0]
 
         if estop or paused:
             return
@@ -565,7 +579,8 @@ def main():
                 # Re-assert the belt command every second while the auto cycle
                 # is active so a restarted or briefly-disconnected plant always
                 # converges back to the correct belt state.
-                if started and mode == "auto" and not estop and not paused and not jam_flag:
+                if (started and mode == "auto" and not estop and not paused
+                        and not jam_flag and not reject_full):
                     client.publish("pickline/target/belt", "1", retain=True)
                 last_alive = now
         except Exception as exc:
