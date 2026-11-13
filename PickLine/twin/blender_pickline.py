@@ -46,6 +46,7 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0,
          "lift/a/stack": 0, "lift/b/stack": 0,
          "lift/a/pallets": 0, "lift/b/pallets": 0,
          "reject/items": "[]", "reject/total": 0,
+         "reject_rate": 0.12,
          "pallet/last": "",
          "robot/a/holding": 0, "robot/b/holding": 0,
          "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
@@ -64,7 +65,8 @@ def on_message(_client, _userdata, msg):
     payload = msg.payload.decode("utf-8", "replace").strip()
     if key in ("x", "y", "z", "grip_a", "grip_b", "belt", "speed", "diverter",
                "part_a/x", "part_a/y", "part_b/x", "part_b/y",
-               "gap", "volume", "fill/a/level", "fill/b/level", "fill/total"):
+               "gap", "volume", "reject_rate", "fill/a/level", "fill/b/level",
+               "fill/total"):
         state[key] = _num(payload, state[key])
     elif key in ("holding_a", "holding_b", "sensor_in", "sensor_out", "sensor_divert",
                  "placed", "exited", "fill/a/count", "fill/b/count",
