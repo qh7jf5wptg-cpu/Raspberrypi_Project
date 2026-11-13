@@ -96,6 +96,7 @@ exited = 0
 scanned = ""                    # last type read by the belt scanner
 
 volume = VOLUME
+reject_rate = G.REJECT_RATE      # fraction of containers rejected at the gate
 fill = {
     "a": {"state": "EMPTY", "level": 0.0, "filled": 0, "pickups": FILL_A_PICKUPS,
           "count": 0, "alarm": "", "pouring": 0, "pour_timer": 0.0},
@@ -268,6 +269,7 @@ def on_connect(client, *_args):
 
 def on_message(_client, _userdata, msg):
     global grip_target, belt_target, diverter_target, belt_speed, volume, jam
+    global reject_rate
     payload = msg.payload.decode("utf-8", "replace").strip()
     with lock:
         try:
@@ -293,6 +295,8 @@ def on_message(_client, _userdata, msg):
                 belt_speed = clamp(float(payload), BELT_SPEED_MIN, BELT_SPEED_MAX)
             elif msg.topic == "pickline/target/volume":
                 volume = clamp(float(payload), VOLUME_MIN, VOLUME_MAX)
+            elif msg.topic == "pickline/target/reject_rate":
+                reject_rate = clamp(float(payload), 0.0, 1.0)
             elif msg.topic == "pickline/target/fill/a/pickups":
                 fill["a"]["pickups"] = int(clamp(float(payload), PICKUPS_MIN, PICKUPS_MAX))
             elif msg.topic == "pickline/target/fill/b/pickups":
@@ -523,7 +527,7 @@ def step(dt):
                         rb["holding"] = False
                         lines[key]["outfeed"].append({
                             "x": rb["place"][0],
-                            "ok": random.random() >= G.REJECT_RATE,
+                            "ok": random.random() >= reject_rate,
                         })
 
         # Outfeed conveyors, quality gate, and lifts.
@@ -650,6 +654,7 @@ def snapshot():
             "pickline/exited": str(exited),
             "pickline/busy": "1" if busy else "0",
             "pickline/volume": "%.0f" % volume,
+            "pickline/reject_rate": "%.2f" % reject_rate,
             "pickline/fill/total": "%.1f" % total,
             "pickline/jam": "1" if jam else "0",
         }

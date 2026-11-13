@@ -145,6 +145,11 @@ HTML = """<!doctype html>
       <input type="range" id="speed-slider" min="20" max="250" step="5" value="90">
     </div>
     <div class="card">
+      <div class="label">Reject rate</div>
+      <div class="value" id="reject-rate-val">12 %</div>
+      <input type="range" id="reject-rate-slider" min="0" max="100" step="1" value="12">
+    </div>
+    <div class="card">
       <div class="label">Route direction</div>
       <div class="value" id="route-val">auto</div>
       <div class="route-btns">
@@ -245,8 +250,11 @@ function send(topic, payload){
 }
 const gapSlider = el('gap-slider');
 const speedSlider = el('speed-slider');
+const rejectRateSlider = el('reject-rate-slider');
 gapSlider.addEventListener('change', () => send('pickline/command/gap', gapSlider.value));
 speedSlider.addEventListener('change', () => send('pickline/target/speed', speedSlider.value));
+rejectRateSlider.addEventListener('change', () =>
+  send('pickline/target/reject_rate', (rejectRateSlider.value / 100).toFixed(2)));
 el('a-take').addEventListener('click', () => send('pickline/fill/a/take', '1'));
 el('b-take').addEventListener('click', () => send('pickline/fill/b/take', '1'));
 el('btn-start').addEventListener('click', () => {
@@ -299,6 +307,9 @@ async function poll(){
     el('speed-val').textContent = speed.toFixed(0) + ' mm/s';
     if (document.activeElement !== gapSlider) gapSlider.value = gap;
     if (document.activeElement !== speedSlider) speedSlider.value = speed;
+    const rejectRate = (parseFloat(t.reject_rate||0.12)||0) * 100;
+    el('reject-rate-val').textContent = Math.round(rejectRate) + ' %';
+    if (document.activeElement !== rejectRateSlider) rejectRateSlider.value = rejectRate;
 
     const route = t.route_mode || 'auto';
     el('route-val').textContent = route;

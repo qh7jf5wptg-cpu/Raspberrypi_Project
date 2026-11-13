@@ -898,6 +898,29 @@ ApplicationWindow {
                                     }
                                 }
                             }
+
+                            Text {
+                                text: "REJECT RATE   " + (num("reject_rate", 0.12) * 100).toFixed(0) + " %"
+                                font.pixelSize: 11
+                                color: "#637083"
+                            }
+                            Slider {
+                                id: rejectRateSlider
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 100
+                                stepSize: 1
+                                value: num("reject_rate", 0.12) * 100
+                                onMoved: if (pressed)
+                                    bridge.publish("pickline/target/reject_rate", (value / 100).toFixed(2))
+                                Connections {
+                                    target: bridge
+                                    function onTagsChanged() {
+                                        if (!rejectRateSlider.pressed)
+                                            rejectRateSlider.value = num("reject_rate", 0.12) * 100
+                                    }
+                                }
+                            }
                         }
                     }
 
