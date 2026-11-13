@@ -181,6 +181,21 @@ def _make_box(name, loc, dims, color):
 
 
 _line_objects_ready = False
+_part_objects_ready = False
+
+
+def _ensure_part_objects():
+    global _part_objects_ready
+    if _part_objects_ready:
+        return
+    _part_objects_ready = True
+    try:
+        _make_box("Part", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04),
+                  (0.98, 0.76, 0.10))
+        _make_box("PartB", (100.0, 100.0, 100.0), (0.04, 0.04, 0.04),
+                  (0.10, 0.75, 0.35))
+    except Exception:
+        pass
 
 
 def _ensure_line_objects():
@@ -206,6 +221,9 @@ def _ensure_line_objects():
         for i in range(6):
             _make_box("RejectBox%d" % i, (100.0, 100.0, 100.0),
                       (0.08, 0.08, 0.08), (0.90, 0.25, 0.20))
+        for i in range(10):
+            _make_box("RejectPile%d" % i, (100.0, 100.0, 100.0),
+                      (0.07, 0.07, 0.05), (0.90, 0.25, 0.20))
     except Exception:
         pass
 
@@ -299,6 +317,15 @@ class PICKLINE_PT_control(bpy.types.Panel):
         op.payload = "1"
         op = row.operator("pickline.publish", text="Take out B")
         op.topic = "pickline/fill/b/take"
+        op.payload = "1"
+
+        box = layout.box()
+        box.label(text="Quality")
+        box.label(text="Rejects: %s%s" % (
+            state.get("reject/total", 0),
+            " (FULL)" if int(state.get("reject/full", 0)) else ""))
+        op = box.operator("pickline.publish", text="Clear rejects")
+        op.topic = "pickline/reject/clear"
         op.payload = "1"
 
         box = layout.box()
@@ -551,8 +578,26 @@ def _update_rejects():
         else:
             box.location = (100.0, 100.0, 100.0)
 
+    # Pile the rejected containers inside the bin.
+    total = min(10, max(0, int(state.get("reject/total", 0))))
+    for i in range(10):
+        pile = _obj("RejectPile%d" % i)
+        if pile is None:
+            continue
+        if i < total:
+            row = i // 5
+            col = i % 5
+            pile.location = (
+                5.5 + (col - 2) * 0.055,
+                2.075,
+                0.05 + row * 0.055,
+            )
+        else:
+            pile.location = (100.0, 100.0, 100.0)
+
 
 def apply_twin():
+    _ensure_part_objects()
     tool = _obj("ToolHead")
     tool_b = _obj("ToolHeadB")
     jaw_a = _obj("JawA")
@@ -656,7 +701,8 @@ def apply_twin():
     green_on = running and blink
     any_full = (state.get("fill/a/state", "") == "FULL"
                 or state.get("fill/b/state", "") == "FULL")
-    blue_on = any_full and blink
+    reject_full = int(state.get("reject/full", 0)) > 0
+    blue_on = (any_full or reject_full) and blink
     _set_light("TowerRed", red_on, (1.0, 0.02, 0.02))
     _set_light("TowerYellow", yellow_on, (1.0, 0.85, 0.05))
     _set_light("TowerGreen", green_on, (0.05, 1.0, 0.1))

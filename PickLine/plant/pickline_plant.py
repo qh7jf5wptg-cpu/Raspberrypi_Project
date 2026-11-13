@@ -265,6 +265,7 @@ def on_connect(client, *_args):
     client.subscribe("pickline/fill/b/take")
     client.subscribe("pickline/fault/#")
     client.subscribe("pickline/clear_belt")
+    client.subscribe("pickline/reject/clear")
 
 
 def on_message(_client, _userdata, msg):
@@ -323,6 +324,9 @@ def on_message(_client, _userdata, msg):
                 reset_plant()
             elif msg.topic == "pickline/clear_belt":
                 clear_belt()
+            elif msg.topic == "pickline/reject/clear":
+                reject_bin["a"] = 0
+                reject_bin["b"] = 0
             elif msg.topic == "pickline/fault/jam":
                 jam = payload.lower() in ("1", "true", "on", "jam")
             elif msg.topic == "pickline/fault/clear":
@@ -700,6 +704,9 @@ def snapshot():
         values["pickline/reject/a"] = str(reject_bin["a"])
         values["pickline/reject/b"] = str(reject_bin["b"])
         values["pickline/reject/total"] = str(reject_bin["a"] + reject_bin["b"])
+        values["pickline/reject/full"] = (
+            "1" if reject_bin["a"] + reject_bin["b"] >= G.REJECT_FULL else "0"
+        )
         values["pickline/reject/items"] = json.dumps(rejects)
         values["pickline/pallet/dispatched"] = str(len(dispatch))
         values["pickline/pallet/last"] = (

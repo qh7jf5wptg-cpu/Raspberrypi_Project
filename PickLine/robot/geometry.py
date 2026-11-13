@@ -40,5 +40,6 @@ INSPECT_X = 550.0                 # inspection point on each outfeed
 REJECT_RATE = 0.12                # fraction of containers that fail inspection
 REJECT_BIN = (550.0, 207.5)       # shared reject bin between the two outfeeds
 REJECT_SPEED = 60.0               # mm/s travel along the reject lane
+REJECT_FULL = 10                  # bin is "full" at this many rejected containers
 
 GRIP_TOL = 18.0                   # mm, "close enough" to a pick/place point

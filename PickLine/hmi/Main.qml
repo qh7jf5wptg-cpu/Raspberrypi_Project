@@ -374,15 +374,28 @@ ApplicationWindow {
                         ctx.lineTo(X(550), Y(207.5))
                         ctx.stroke()
 
-                        ctx.fillStyle = "#f5b7b1"
+                        var rejTotal = num("reject/total", 0)
+                        var rejFull = num("reject/full", 0) > 0
+
+                        // Reject bin (blinks when full).
+                        ctx.fillStyle = rejFull && blinkOn ? "#c0392b" : "#f5b7b1"
                         ctx.fillRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
-                        ctx.strokeStyle = "#c0392b"
+                        ctx.strokeStyle = rejFull && blinkOn ? "#7b241c" : "#c0392b"
                         ctx.lineWidth = 2
                         ctx.strokeRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
                         ctx.fillStyle = "#c0392b"
-                        ctx.font = "bold 10px sans-serif"
+                        ctx.font = "bold 9px sans-serif"
                         ctx.textAlign = "center"
-                        ctx.fillText("REJECT", X(550), Y(207.5) - 14 * s)
+                        ctx.fillText("REJECT", X(550), Y(207.5) - 13 * s)
+
+                        // Pile of rejected items inside the bin.
+                        for (var p = 0; p < Math.min(rejTotal, 10); p++) {
+                            var prow = Math.floor(p / 5)
+                            var pcol = p % 5
+                            ctx.fillStyle = "#e74c3c"
+                            ctx.fillRect(X(550) - 8 * s + pcol * 3.5 * s,
+                                         Y(207.5) + 4 * s - prow * 5 * s, 3 * s, 4 * s)
+                        }
 
                         for (var j = 0; j < rj.length; j++) {
                             var r = rj[j]
@@ -390,10 +403,10 @@ ApplicationWindow {
                             ctx.fillRect(X(r.x) - 4 * s, Y(r.y) - 4 * s, 8 * s, 8 * s)
                         }
 
-                        var rejTotal = num("reject/total", 0)
-                        ctx.fillStyle = "#172033"
+                        ctx.fillStyle = rejFull && blinkOn ? "#c0392b" : "#172033"
                         ctx.font = "bold 11px sans-serif"
-                        ctx.fillText("REJECTS " + rejTotal, X(550), Y(207.5) + 26 * s)
+                        ctx.fillText(rejFull ? "FULL · CLEAR" : ("REJECTS " + rejTotal + "/10"),
+                                     X(550), Y(207.5) + 26 * s)
 
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"
@@ -675,6 +688,11 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             text: "Clear jam"
                             onClicked: bridge.publish("pickline/fault/clear", "1")
+                        }
+                        Button {
+                            Layout.fillWidth: true
+                            text: "Clear rejects"
+                            onClicked: bridge.publish("pickline/reject/clear", "1")
                         }
                     }
 

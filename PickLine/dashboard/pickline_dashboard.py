@@ -202,6 +202,7 @@ HTML = """<!doctype html>
       <div class="label">Quality rejects</div>
       <div class="value" id="reject-total">0</div>
       <p id="reject-info" style="color:var(--muted);font-size:12px">A 0 · B 0</p>
+      <button id="btn-clear-rejects" class="take-btn">Clear rejects</button>
     </div>
     <div class="card">
       <div class="label">Pallet dispatch</div>
@@ -271,6 +272,7 @@ el('btn-pause').addEventListener('click', () => {
 });
 el('btn-emergency').addEventListener('click', () => send('pickline/command/estop', '1'));
 el('btn-clear-belt').addEventListener('click', () => send('pickline/command/clear_belt', '1'));
+el('btn-clear-rejects').addEventListener('click', () => send('pickline/reject/clear', '1'));
 document.querySelectorAll('.route-btns button').forEach((btn) => {
   btn.addEventListener('click', () => send('pickline/command/route', btn.dataset.route));
 });
