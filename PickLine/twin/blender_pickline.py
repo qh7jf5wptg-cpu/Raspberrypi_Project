@@ -241,6 +241,10 @@ class PicklineSettings(bpy.types.PropertyGroup):
         name="Belt speed (mm/s)", default=90, min=20, max=250,
         update=lambda self, ctx: None if _syncing else _publish(
             "pickline/target/speed", str(self.speed)))
+    reject_rate: bpy.props.IntProperty(
+        name="Reject rate (%)", default=12, min=0, max=100,
+        update=lambda self, ctx: None if _syncing else _publish(
+            "pickline/target/reject_rate", "%.2f" % (self.reject_rate / 100.0)))
 
 
 class PICKLINE_OT_publish(bpy.types.Operator):
@@ -349,6 +353,7 @@ class PICKLINE_PT_control(bpy.types.Panel):
         box.label(text="Settings")
         box.prop(settings, "gap")
         box.prop(settings, "speed")
+        box.prop(settings, "reject_rate")
 
 
 def register_panel():
@@ -371,10 +376,13 @@ def sync_settings():
     try:
         gap = float(state.get("gap", 0.5))
         speed = int(state.get("speed", 90))
+        reject = int(round(float(state.get("reject_rate", 0.12)) * 100))
         if abs(settings.gap - gap) > 0.05:
             settings.gap = gap
         if settings.speed != speed:
             settings.speed = speed
+        if settings.reject_rate != reject:
+            settings.reject_rate = reject
     finally:
         _syncing = False
 
