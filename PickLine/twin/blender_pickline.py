@@ -218,7 +218,7 @@ def _ensure_line_objects():
         for i in range(2):
             _make_box("LiftStackB%d" % i, (100.0, 100.0, 100.0),
                       (0.12, 0.12, 0.05), (0.10, 0.75, 0.35))
-        _make_box("RejectBin", (5.5, 2.075, 0.04), (0.32, 0.32, 0.14),
+        _make_box("RejectBin", (5.5, 2.075, 0.02), (0.32, 0.32, 0.04),
                   (0.78, 0.22, 0.18))
         for i in range(6):
             _make_box("RejectBox%d" % i, (100.0, 100.0, 100.0),
@@ -592,7 +592,7 @@ def _update_rejects():
             pile.location = (
                 5.5 + (col - 2) * 0.055,
                 2.075,
-                0.05 + row * 0.055,
+                0.06 + row * 0.05,
             )
         else:
             pile.location = (100.0, 100.0, 100.0)

@@ -349,7 +349,9 @@ async function poll(){
 
     const rA = parseInt(t['reject/a']||0)||0;
     const rB = parseInt(t['reject/b']||0)||0;
-    el('reject-total').textContent = rA + rB;
+    const rFull = t['reject/full'] === '1';
+    el('reject-total').textContent = (rA + rB) + ' / 10' + (rFull ? ' · FULL' : '');
+    el('reject-total').style.color = rFull ? 'var(--red)' : '';
     el('reject-info').textContent = 'A ' + rA + ' · B ' + rB;
     const dispatched = parseInt(t['pallet/dispatched']||0)||0;
     el('pallet-dispatched').textContent = dispatched;
