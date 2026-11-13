@@ -7,6 +7,7 @@ import os
 import sys
 import math
 import time
+import json
 
 import bpy
 from mathutils import Vector
@@ -44,6 +45,8 @@ state = {"x": 0.0, "y": 0.0, "z": 60.0,
          "lift/a/z": 0.0, "lift/b/z": 0.0,
          "lift/a/stack": 0, "lift/b/stack": 0,
          "lift/a/pallets": 0, "lift/b/pallets": 0,
+         "reject/items": "[]", "reject/total": 0,
+         "pallet/last": "",
          "robot/a/holding": 0, "robot/b/holding": 0,
          "robot/a/gripper": 1.0, "robot/b/gripper": 1.0,
          "scanned": ""}
@@ -88,6 +91,13 @@ def on_message(_client, _userdata, msg):
             state[key] = payload
         else:
             state[key] = _num(payload)
+    elif key.startswith("reject/"):
+        if key == "reject/items":
+            state[key] = payload
+        else:
+            state[key] = int(_num(payload))
+    elif key == "pallet/last":
+        state[key] = payload
 
 
 def _obj(name):
@@ -191,6 +201,11 @@ def _ensure_line_objects():
         for i in range(2):
             _make_box("LiftStackB%d" % i, (100.0, 100.0, 100.0),
                       (0.12, 0.12, 0.05), (0.10, 0.75, 0.35))
+        _make_box("RejectBin", (5.5, 2.075, 0.04), (0.32, 0.32, 0.14),
+                  (0.78, 0.22, 0.18))
+        for i in range(6):
+            _make_box("RejectBox%d" % i, (100.0, 100.0, 100.0),
+                      (0.08, 0.08, 0.08), (0.90, 0.25, 0.20))
     except Exception:
         pass
 
@@ -509,6 +524,26 @@ def _update_outfeed():
                 box.location = (100.0, 100.0, 100.0)
 
 
+def _update_rejects():
+    _ensure_line_objects()
+    raw = state.get("reject/items", "[]")
+    try:
+        items = json.loads(raw) if raw else []
+    except Exception:
+        items = []
+    for i in range(6):
+        box = _obj("RejectBox%d" % i)
+        if box is None:
+            continue
+        if i < len(items):
+            it = items[i]
+            box.location = (
+                float(it["x"]) / 100.0, float(it["y"]) / 100.0, 0.06,
+            )
+        else:
+            box.location = (100.0, 100.0, 100.0)
+
+
 def apply_twin():
     tool = _obj("ToolHead")
     tool_b = _obj("ToolHeadB")
@@ -620,6 +655,7 @@ def apply_twin():
     _set_light("TowerBlue", blue_on, (0.05, 0.25, 1.0))
     _update_robots()
     _update_outfeed()
+    _update_rejects()
     _redraw()
 
     sync_settings()

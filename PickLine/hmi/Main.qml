@@ -360,6 +360,41 @@ ApplicationWindow {
                         drawLine("a", 170, "#f1c40f", "OUTFEED A")
                         drawLine("b", 245, "#2ecc71", "OUTFEED B")
 
+                        // Quality gate: shared reject bin between the outfeeds.
+                        var rejectItems = tag("reject/items", "[]")
+                        var rj = []
+                        try { rj = JSON.parse(rejectItems) || [] } catch (e) { rj = [] }
+
+                        ctx.strokeStyle = "#c0392b"
+                        ctx.lineWidth = 1.5
+                        ctx.beginPath()
+                        ctx.moveTo(X(550), Y(170))
+                        ctx.lineTo(X(550), Y(207.5))
+                        ctx.moveTo(X(550), Y(245))
+                        ctx.lineTo(X(550), Y(207.5))
+                        ctx.stroke()
+
+                        ctx.fillStyle = "#f5b7b1"
+                        ctx.fillRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
+                        ctx.strokeStyle = "#c0392b"
+                        ctx.lineWidth = 2
+                        ctx.strokeRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
+                        ctx.fillStyle = "#c0392b"
+                        ctx.font = "bold 10px sans-serif"
+                        ctx.textAlign = "center"
+                        ctx.fillText("REJECT", X(550), Y(207.5) - 14 * s)
+
+                        for (var j = 0; j < rj.length; j++) {
+                            var r = rj[j]
+                            ctx.fillStyle = "#e74c3c"
+                            ctx.fillRect(X(r.x) - 4 * s, Y(r.y) - 4 * s, 8 * s, 8 * s)
+                        }
+
+                        var rejTotal = num("reject/total", 0)
+                        ctx.fillStyle = "#172033"
+                        ctx.font = "bold 11px sans-serif"
+                        ctx.fillText("REJECTS " + rejTotal, X(550), Y(207.5) + 26 * s)
+
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"
                         ctx.fillRect(X(0) - 8, Y(100) - 12 * s, 16, 24 * s)

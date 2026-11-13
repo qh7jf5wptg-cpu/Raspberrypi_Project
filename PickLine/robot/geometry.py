@@ -35,4 +35,10 @@ LIFT_LOAD_TIME = 0.45             # seconds to load a container into the lift
 LIFT_UNLOAD_TIME = 0.45           # seconds to transfer it onto the palletizer
 PALLET_TARGET = {"a": 4, "b": 2}  # containers per finished pallet
 
+# Quality gate and reject lane.
+INSPECT_X = 550.0                 # inspection point on each outfeed
+REJECT_RATE = 0.12                # fraction of containers that fail inspection
+REJECT_BIN = (550.0, 207.5)       # shared reject bin between the two outfeeds
+REJECT_SPEED = 60.0               # mm/s travel along the reject lane
+
 GRIP_TOL = 18.0                   # mm, "close enough" to a pick/place point

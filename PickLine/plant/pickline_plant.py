@@ -16,7 +16,10 @@ Run:
     MQTT_BROKER=192.168.50.1 python3 pickline_plant.py
 """
 import math
+import json
 import os
+import random
+import sqlite3
 import sys
 import threading
 import time
@@ -30,6 +33,10 @@ from robot import geometry as G
 
 BROKER = os.environ.get("MQTT_BROKER", "localhost")
 PORT = int(os.environ.get("MQTT_PORT", "1883"))
+DB_PATH = os.environ.get(
+    "PICKLINE_DB",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pickline.db"),
+)
 
 SPEED_MM_S = 140.0      # gantry axis travel speed
 GRIP_TIME = 0.35        # seconds for the jaws to open or close
@@ -123,7 +130,7 @@ robots = {
 }
 lines = {
     "a": {
-        "outfeed": [],          # x positions of containers riding outfeed A
+        "outfeed": [],          # {"x": float, "ok": bool} containers on outfeed A
         "entered": 0,           # containers that entered lift A
         "lift_z": 0.0,
         "lift_state": "IDLE",   # IDLE, LOADING, RAISING, UNLOADING, RETURNING
@@ -141,6 +148,10 @@ lines = {
         "timer": 0.0,
     },
 }
+reject_bin = {"a": 0, "b": 0}   # rejected containers that reached the bin
+rejects = []                    # {"line": "a"/"b", "x": x, "y": y} on the lane
+dispatch = []                   # {"id": n, "ts": t, "line": k, "count": c}
+pallet_seq = 0
 
 
 def clamp(value, low, high):
@@ -175,7 +186,8 @@ def clear_station(key):
 
 
 def reset_plant():
-    global placed, exited, total, jam, scanned
+    global placed, exited, total, jam, scanned, pallet_seq
+    global reject_bin, rejects, dispatch
     placed = 0
     exited = 0
     scanned = ""
@@ -201,6 +213,10 @@ def reset_plant():
         lines[key]["stack"] = 0
         lines[key]["pallets"] = 0
         lines[key]["timer"] = 0.0
+    reject_bin = {"a": 0, "b": 0}
+    rejects.clear()
+    dispatch.clear()
+    pallet_seq = 0
 
 
 def clear_belt():
@@ -208,6 +224,36 @@ def clear_belt():
     removed = len(parts)
     parts.clear()
     placed = max(0, placed - removed)
+
+
+_dispatch_con = None
+
+
+def init_dispatch_db():
+    global _dispatch_con
+    try:
+        _dispatch_con = sqlite3.connect(DB_PATH)
+        _dispatch_con.execute(
+            "CREATE TABLE IF NOT EXISTS dispatch ("
+            "id INTEGER, ts REAL, line TEXT, count INTEGER)"
+        )
+        _dispatch_con.commit()
+    except Exception as exc:
+        print("Dispatch DB init failed:", repr(exc), flush=True)
+        _dispatch_con = None
+
+
+def record_dispatch(event):
+    if _dispatch_con is None:
+        return
+    try:
+        _dispatch_con.execute(
+            "INSERT INTO dispatch (id, ts, line, count) VALUES (?,?,?,?)",
+            (event["id"], event["ts"], event["line"], event["count"]),
+        )
+        _dispatch_con.commit()
+    except Exception as exc:
+        print("Dispatch DB write failed:", repr(exc), flush=True)
 
 
 def on_connect(client, *_args):
@@ -317,7 +363,7 @@ def enter_station(part, key):
 
 def step(dt):
     global placed, belt, diverter, total, sensor_in, sensor_out, sensor_divert
-    global scanned, diverter_target
+    global scanned, diverter_target, pallet_seq
 
     with lock:
         for i in range(3):
@@ -470,32 +516,37 @@ def step(dt):
             if rb["gripper"] >= 0.95 and rb["holding"]:
                 if near3(rb["tcp"], rb["place"], G.GRIP_TOL):
                     clear = all(
-                        abs(x - rb["place"][0]) >= G.OUTFEED_PITCH
-                        for x in lines[key]["outfeed"]
+                        abs(c["x"] - rb["place"][0]) >= G.OUTFEED_PITCH
+                        for c in lines[key]["outfeed"]
                     )
                     if clear:
                         rb["holding"] = False
-                        lines[key]["outfeed"].append(rb["place"][0])
+                        lines[key]["outfeed"].append({
+                            "x": rb["place"][0],
+                            "ok": random.random() >= G.REJECT_RATE,
+                        })
 
-        # Outfeed conveyors and lifts: advance containers toward each lift,
-        # raise them to the palletizer, and release finished pallets.
+        # Outfeed conveyors, quality gate, and lifts.
         for key, line in lines.items():
             lift_x = G.OUTFEED_A_LIFT_X if key == "a" else G.OUTFEED_B_LIFT_X
+            line_y = G.OUTFEED_A_Y if key == "a" else G.OUTFEED_B_Y
 
-            # Advance the outfeed. A container stops at the lift entrance when
-            # the lift is not ready to accept it.
+            # Advance the outfeed. Rejects divert to the reject lane at the
+            # inspection point; good containers continue to the lift.
             advanced = []
-            for x in line["outfeed"]:
-                nx = x + G.OUTFEED_SPEED * dt
-                if nx >= lift_x:
+            for c in line["outfeed"]:
+                nx = c["x"] + G.OUTFEED_SPEED * dt
+                if not c["ok"] and nx >= G.INSPECT_X:
+                    rejects.append({"line": key, "x": G.INSPECT_X, "y": line_y})
+                elif nx >= lift_x:
                     if line["lift_state"] == "IDLE":
                         line["lift_state"] = "LOADING"
                         line["timer"] = 0.0
                         line["entered"] += 1
                     else:
-                        advanced.append(lift_x)
+                        advanced.append({"x": lift_x, "ok": True})
                 else:
-                    advanced.append(nx)
+                    advanced.append({"x": nx, "ok": c["ok"]})
             line["outfeed"] = advanced
 
             # Lift / palletizer state machine: collect containers onto a pallet
@@ -521,11 +572,29 @@ def step(dt):
                     line["stack"] = 0
                     line["timer"] = 0.0
                     line["lift_state"] = "RETURNING"
+                    pallet_seq += 1
+                    event = {"id": pallet_seq, "ts": time.time(), "line": key,
+                             "count": G.PALLET_TARGET[key]}
+                    dispatch.append(event)
+                    record_dispatch(event)
             elif line["lift_state"] == "RETURNING":
                 line["lift_z"] = max(0.0, line["lift_z"] - G.LIFT_SPEED * dt)
                 if line["lift_z"] <= 0.0:
                     line["lift_z"] = 0.0
                     line["lift_state"] = "IDLE"
+
+        # Reject lane: carry rejected containers to the shared middle bin.
+        for r in rejects:
+            target_y = G.REJECT_BIN[1]
+            step_y = G.REJECT_SPEED * dt
+            if r["line"] == "a":
+                r["y"] = min(target_y, r["y"] + step_y)
+            else:
+                r["y"] = max(target_y, r["y"] - step_y)
+            if abs(r["y"] - target_y) < 0.5:
+                reject_bin[r["line"]] += 1
+                r["done"] = True
+        rejects[:] = [r for r in rejects if not r.get("done")]
 
 
 def snapshot():
@@ -609,7 +678,7 @@ def snapshot():
         for key, line in lines.items():
             drop_x = G.OUTFEED_A_DROP[0] if key == "a" else G.OUTFEED_B_DROP[0]
             infeed_clear = all(
-                abs(x - drop_x) >= G.OUTFEED_PITCH for x in line["outfeed"]
+                abs(c["x"] - drop_x) >= G.OUTFEED_PITCH for c in line["outfeed"]
             )
             values["pickline/outfeed/%s/count" % key] = str(line["entered"])
             values["pickline/outfeed/%s/queued" % key] = str(len(line["outfeed"]))
@@ -617,12 +686,23 @@ def snapshot():
                 "1" if infeed_clear else "0"
             )
             values["pickline/outfeed/%s/positions" % key] = ",".join(
-                "%.1f" % x for x in line["outfeed"]
+                "%.1f" % c["x"] for c in line["outfeed"]
             )
             values["pickline/lift/%s/z" % key] = "%.1f" % line["lift_z"]
             values["pickline/lift/%s/state" % key] = line["lift_state"]
             values["pickline/lift/%s/stack" % key] = str(line["stack"])
             values["pickline/lift/%s/pallets" % key] = str(line["pallets"])
+        values["pickline/reject/a"] = str(reject_bin["a"])
+        values["pickline/reject/b"] = str(reject_bin["b"])
+        values["pickline/reject/total"] = str(reject_bin["a"] + reject_bin["b"])
+        values["pickline/reject/items"] = json.dumps(rejects)
+        values["pickline/pallet/dispatched"] = str(len(dispatch))
+        values["pickline/pallet/last"] = (
+            json.dumps(dispatch[-1]) if dispatch else ""
+        )
+        values["pickline/pallet/queue"] = (
+            json.dumps(dispatch[-8:]) if dispatch else "[]"
+        )
         return values
 
 
@@ -658,6 +738,7 @@ def main():
             time.sleep(2)
 
     client.loop_start()
+    init_dispatch_db()
     print("PickLine plant running (broker %s:%d)" % (BROKER, PORT))
 
     period = 1.0 / LOOP_HZ

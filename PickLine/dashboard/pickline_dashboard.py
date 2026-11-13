@@ -193,6 +193,16 @@ HTML = """<!doctype html>
       <div class="value" id="lift-b-state">IDLE</div>
       <p id="lift-b-info" style="color:var(--muted);font-size:12px">stack 0 · pallets 0</p>
     </div>
+    <div class="card">
+      <div class="label">Quality rejects</div>
+      <div class="value" id="reject-total">0</div>
+      <p id="reject-info" style="color:var(--muted);font-size:12px">A 0 · B 0</p>
+    </div>
+    <div class="card">
+      <div class="label">Pallet dispatch</div>
+      <div class="value" id="pallet-dispatched">0</div>
+      <p id="pallet-last" style="color:var(--muted);font-size:12px">—</p>
+    </div>
   </div>
   <div class="chart-row">
     <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
@@ -323,6 +333,19 @@ async function poll(){
       el('lift-'+p+'-state').textContent = lst;
       el('lift-'+p+'-info').textContent = 'stack ' + stack + ' · pallets ' + pallets;
     });
+
+    const rA = parseInt(t['reject/a']||0)||0;
+    const rB = parseInt(t['reject/b']||0)||0;
+    el('reject-total').textContent = rA + rB;
+    el('reject-info').textContent = 'A ' + rA + ' · B ' + rB;
+    const dispatched = parseInt(t['pallet/dispatched']||0)||0;
+    el('pallet-dispatched').textContent = dispatched;
+    try {
+      const last = t['pallet/last'] ? JSON.parse(t['pallet/last']) : null;
+      el('pallet-last').textContent = last
+          ? '#' + last.id + ' ' + String(last.line).toUpperCase() + ' · ' + last.count + ' pcs'
+          : '—';
+    } catch(e) { el('pallet-last').textContent = '—'; }
 
     LA.length = DA.length = LB.length = DB.length = LC.length = DCA.length = DCB.length = 0;
     (d.history||[]).forEach(([ts,a,b]) => {
