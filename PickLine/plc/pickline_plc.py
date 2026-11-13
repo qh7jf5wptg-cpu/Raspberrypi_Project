@@ -295,7 +295,7 @@ def on_connect(cli, *_args):
 def on_message(_cli, _userdata, msg):
     global mode, started, state, gap, side_mode, route_mode, alarm, step_idx, jam_flag
     global paused, estop, part_on_line, infeed_clear, decision, scanned, belt_pos
-    global belt_infeed_clear, reject_full
+    global belt_infeed_clear, reject_full, step_started, last_resend
     try:
         payload = msg.payload.decode("utf-8", "replace").strip()
         with lock:
@@ -407,6 +407,8 @@ def on_message(_cli, _userdata, msg):
                     hold_position()
             elif msg.topic == "pickline/command/resume":
                 paused = False
+                step_started = time.monotonic()
+                last_resend = time.monotonic()
             elif msg.topic == "pickline/command/estop":
                 estop = True
                 started = False
@@ -443,7 +445,7 @@ def step_done(now):
 
 
 def tick(now):
-    global step_idx, started, alarm, state, last_resend
+    global step_idx, started, alarm, state, last_resend, step_started
     with lock:
         if mode != "auto" or not started:
             return
@@ -464,6 +466,8 @@ def tick(now):
 
         if state == "REJECT_FULL":
             state = SEQUENCE[step_idx][0]
+            step_started = now
+            last_resend = now
 
         if estop or paused:
             return
