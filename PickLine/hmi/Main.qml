@@ -312,9 +312,6 @@ ApplicationWindow {
                             ctx.textAlign = "center"
                             ctx.fillText(label, X(bx), Y(by) - 12 * s)
                         }
-                        drawRobot("a", 460, 135, "ROBOT A")
-                        drawRobot("b", 430, 205, "ROBOT B")
-
                         // Two independent outfeed lines, each ending at a lift
                         // with a palletizer on top.
                         function drawLine(key, y, color, label) {
@@ -366,6 +363,9 @@ ApplicationWindow {
                         }
                         drawLine("a", 170, "#f1c40f", "OUTFEED A")
                         drawLine("b", 275, "#2ecc71", "OUTFEED B")
+
+                        drawRobot("a", 460, 135, "ROBOT A")
+                        drawRobot("b", 430, 205, "ROBOT B")
 
                         // Quality gate: shared reject bin between the outfeeds.
                         var rejectItems = tag("reject/items", "[]")
