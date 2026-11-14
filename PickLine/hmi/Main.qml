@@ -376,10 +376,11 @@ ApplicationWindow {
                         drawRobot("a", 460, 135, "ROBOT A")
                         drawRobot("b", 430, 205, "ROBOT B")
 
-                        // Safety fence around the robot cell, with openings
-                        // where the two outfeed belts pass through.
-                        var fenceL = X(390), fenceR = X(500)
-                        var fenceT = Y(285), fenceB = Y(95)
+                        // Safety fence around the two robots. The fill tanks,
+                        // the incoming belt, and outfeed B stay outside; the
+                        // A outfeed passes through the right opening.
+                        var fenceL = X(410), fenceR = X(475)
+                        var fenceT = Y(265), fenceB = Y(115)
                         ctx.strokeStyle = "#e67e22"
                         ctx.lineWidth = 3
                         ctx.setLineDash([6 * s, 3 * s])
@@ -392,26 +393,26 @@ ApplicationWindow {
                         ctx.lineTo(fenceL, fenceB)
                         ctx.stroke()
                         ctx.beginPath()
-                        ctx.moveTo(fenceR, Y(263))
-                        ctx.lineTo(fenceR, Y(182))
+                        ctx.moveTo(fenceR, fenceT)
+                        ctx.lineTo(fenceR, Y(180))
                         ctx.stroke()
                         ctx.beginPath()
-                        ctx.moveTo(fenceR, Y(158))
+                        ctx.moveTo(fenceR, Y(160))
                         ctx.lineTo(fenceR, fenceB)
                         ctx.stroke()
                         ctx.setLineDash([])
                         ctx.beginPath()
                         ctx.moveTo(fenceL, fenceB)
-                        ctx.lineTo(X(420), fenceB)
+                        ctx.lineTo(X(425), fenceB)
                         ctx.stroke()
                         ctx.beginPath()
-                        ctx.moveTo(X(460), fenceB)
+                        ctx.moveTo(X(455), fenceB)
                         ctx.lineTo(fenceR, fenceB)
                         ctx.stroke()
                         ctx.strokeStyle = "#e67e22"
                         ctx.lineWidth = 2
                         ctx.beginPath()
-                        ctx.arc(X(460), fenceB, X(460) - X(420), Math.PI, Math.PI * 1.5)
+                        ctx.arc(X(455), fenceB, X(455) - X(425), Math.PI, Math.PI * 1.5)
                         ctx.stroke()
                         ctx.fillStyle = "#e67e22"
                         ctx.font = "bold 9px sans-serif"
