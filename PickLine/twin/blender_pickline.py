@@ -214,12 +214,20 @@ def _ensure_line_objects():
                   (0.60, 0.65, 0.70))
         _make_box("OutfeedRollerBL", (4.2, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
-        _make_box("OutfeedRollerBR", (6.2, 2.75, 0.05), (0.08, 0.10, 0.08),
+        _make_box("OutfeedRollerBR", (6.1, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
         _make_box("LiftA", (6.2, 1.7, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
         _make_box("LiftB", (6.2, 2.75, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
+        # Align the .blend A outfeed with the lift (same span as B).
+        a_belt = _obj("OutfeedBelt")
+        if a_belt:
+            a_belt.location = (5.2, 1.7, 0.04)
+            a_belt.scale = (2.0, 0.10, 0.02)
+        a_roller_r = _obj("OutfeedRollerR")
+        if a_roller_r:
+            a_roller_r.location = (6.1, 1.7, 0.05)
         for i in range(4):
             _make_box("LiftStackA%d" % i, (100.0, 100.0, 100.0),
                       (0.12, 0.12, 0.05), (0.98, 0.76, 0.10))
@@ -236,12 +244,12 @@ def _ensure_line_objects():
                       (0.07, 0.07, 0.05), (0.90, 0.25, 0.20))
         # Safety fence around the robot cell, with a door on the bottom edge.
         fence = (0.90, 0.50, 0.20)
-        _make_box("FenceLeft", (4.1, 1.9, 0.35), (0.03, 1.5, 0.6), fence)
-        _make_box("FenceRightTop", (4.75, 2.225, 0.35), (0.03, 0.85, 0.6), fence)
-        _make_box("FenceRightBottom", (4.75, 1.375, 0.35), (0.03, 0.45, 0.6), fence)
-        _make_box("FenceTop", (4.425, 2.65, 0.35), (0.65, 0.03, 0.6), fence)
-        _make_box("FenceBottomL", (4.175, 1.15, 0.35), (0.15, 0.03, 0.6), fence)
-        _make_box("FenceBottomR", (4.65, 1.15, 0.35), (0.2, 0.03, 0.6), fence)
+        _make_box("FenceLeft", (4.1, 1.9, 0.2), (0.03, 1.5, 0.3), fence)
+        _make_box("FenceRightTop", (4.75, 2.225, 0.2), (0.03, 0.85, 0.3), fence)
+        _make_box("FenceRightBottom", (4.75, 1.375, 0.2), (0.03, 0.45, 0.3), fence)
+        _make_box("FenceTop", (4.425, 2.65, 0.2), (0.65, 0.03, 0.3), fence)
+        _make_box("FenceBottomL", (4.175, 1.15, 0.2), (0.15, 0.03, 0.3), fence)
+        _make_box("FenceBottomR", (4.65, 1.15, 0.2), (0.2, 0.03, 0.3), fence)
     except Exception:
         pass
 
