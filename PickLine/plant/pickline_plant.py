@@ -327,13 +327,6 @@ def on_message(_client, _userdata, msg):
             elif msg.topic == "pickline/reject/clear":
                 reject_bin["a"] = 0
                 reject_bin["b"] = 0
-                rejects.clear()
-                # Discard any reject-bound containers still waiting on the
-                # outfeeds so nothing re-enters the bin right after clearing.
-                for key in ("a", "b"):
-                    lines[key]["outfeed"] = [
-                        c for c in lines[key]["outfeed"] if c["ok"]
-                    ]
             elif msg.topic == "pickline/fault/jam":
                 jam = payload.lower() in ("1", "true", "on", "jam")
             elif msg.topic == "pickline/fault/clear":
