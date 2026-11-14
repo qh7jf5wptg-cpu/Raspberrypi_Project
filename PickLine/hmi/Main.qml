@@ -358,7 +358,7 @@ ApplicationWindow {
                                          X(liftX), Y(y) - 18 * s)
                         }
                         drawLine("a", 170, "#f1c40f", "OUTFEED A")
-                        drawLine("b", 245, "#2ecc71", "OUTFEED B")
+                        drawLine("b", 275, "#2ecc71", "OUTFEED B")
 
                         // Quality gate: shared reject bin between the outfeeds.
                         var rejectItems = tag("reject/items", "[]")
@@ -369,9 +369,9 @@ ApplicationWindow {
                         ctx.lineWidth = 1.5
                         ctx.beginPath()
                         ctx.moveTo(X(550), Y(170))
-                        ctx.lineTo(X(550), Y(207.5))
-                        ctx.moveTo(X(550), Y(245))
-                        ctx.lineTo(X(550), Y(207.5))
+                        ctx.lineTo(X(550), Y(222.5))
+                        ctx.moveTo(X(550), Y(275))
+                        ctx.lineTo(X(550), Y(222.5))
                         ctx.stroke()
 
                         var rejTotal = num("reject/total", 0)
@@ -379,14 +379,14 @@ ApplicationWindow {
 
                         // Reject bin (blinks when full).
                         ctx.fillStyle = rejFull && blinkOn ? "#c0392b" : "#f5b7b1"
-                        ctx.fillRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
+                        ctx.fillRect(X(550) - 10 * s, Y(222.5) - 10 * s, 20 * s, 20 * s)
                         ctx.strokeStyle = rejFull && blinkOn ? "#7b241c" : "#c0392b"
                         ctx.lineWidth = 2
-                        ctx.strokeRect(X(550) - 10 * s, Y(207.5) - 10 * s, 20 * s, 20 * s)
+                        ctx.strokeRect(X(550) - 10 * s, Y(222.5) - 10 * s, 20 * s, 20 * s)
                         ctx.fillStyle = "#c0392b"
                         ctx.font = "bold 9px sans-serif"
                         ctx.textAlign = "center"
-                        ctx.fillText("REJECT", X(550), Y(207.5) - 13 * s)
+                        ctx.fillText("REJECT", X(550), Y(222.5) - 13 * s)
 
                         // Pile of rejected items inside the bin.
                         for (var p = 0; p < Math.min(rejTotal, 10); p++) {
@@ -394,7 +394,7 @@ ApplicationWindow {
                             var pcol = p % 5
                             ctx.fillStyle = "#e74c3c"
                             ctx.fillRect(X(550) - 8 * s + pcol * 3.5 * s,
-                                         Y(207.5) + 4 * s - prow * 5 * s, 3 * s, 4 * s)
+                                         Y(222.5) + 4 * s - prow * 5 * s, 3 * s, 4 * s)
                         }
 
                         for (var j = 0; j < rj.length; j++) {
@@ -406,7 +406,7 @@ ApplicationWindow {
                         ctx.fillStyle = rejFull && blinkOn ? "#c0392b" : "#172033"
                         ctx.font = "bold 11px sans-serif"
                         ctx.fillText(rejFull ? "FULL · CLEAR" : ("REJECTS " + rejTotal + "/10"),
-                                     X(550), Y(207.5) + 26 * s)
+                                     X(550), Y(222.5) + 26 * s)
 
                         // Drop zone.
                         ctx.fillStyle = "rgba(0,183,199,0.20)"

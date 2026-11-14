@@ -20,7 +20,7 @@ OUTFEED_A_DROP = (430.0, OUTFEED_A_Y, 30.0)
 OUTFEED_A_LIFT_X = 620.0
 
 # Outfeed B (station B, green): runs to the right at y = 245.
-OUTFEED_B_Y = 245.0
+OUTFEED_B_Y = 275.0
 OUTFEED_B_START_X = 420.0
 OUTFEED_B_DROP = (430.0, OUTFEED_B_Y, 30.0)
 OUTFEED_B_LIFT_X = 620.0
@@ -38,7 +38,7 @@ PALLET_TARGET = {"a": 4, "b": 2}  # containers per finished pallet
 # Quality gate and reject lane.
 INSPECT_X = 550.0                 # inspection point on each outfeed
 REJECT_RATE = 0.12                # fraction of containers that fail inspection
-REJECT_BIN = (550.0, 207.5)       # shared reject bin between the two outfeeds
+REJECT_BIN = (550.0, 222.5)       # shared reject bin between the two outfeeds
 REJECT_SPEED = 60.0               # mm/s travel along the reject lane
 REJECT_FULL = 10                  # bin is "full" at this many rejected containers
 

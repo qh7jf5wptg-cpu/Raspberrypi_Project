@@ -210,15 +210,15 @@ def _ensure_line_objects():
         return
     _line_objects_ready = True
     try:
-        _make_box("OutfeedBeltB", (5.2, 2.45, 0.04), (2.0, 0.10, 0.02),
+        _make_box("OutfeedBeltB", (5.2, 2.75, 0.04), (2.0, 0.10, 0.02),
                   (0.60, 0.65, 0.70))
-        _make_box("OutfeedRollerBL", (4.2, 2.45, 0.05), (0.08, 0.10, 0.08),
+        _make_box("OutfeedRollerBL", (4.2, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
-        _make_box("OutfeedRollerBR", (6.2, 2.45, 0.05), (0.08, 0.10, 0.08),
+        _make_box("OutfeedRollerBR", (6.2, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
         _make_box("LiftA", (6.2, 1.7, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
-        _make_box("LiftB", (6.2, 2.45, 0.08), (0.18, 0.18, 0.06),
+        _make_box("LiftB", (6.2, 2.75, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
         for i in range(4):
             _make_box("LiftStackA%d" % i, (100.0, 100.0, 100.0),
@@ -226,7 +226,7 @@ def _ensure_line_objects():
         for i in range(2):
             _make_box("LiftStackB%d" % i, (100.0, 100.0, 100.0),
                       (0.12, 0.12, 0.05), (0.10, 0.75, 0.35))
-        _make_box("RejectBin", (5.5, 2.075, 0.02), (0.32, 0.32, 0.04),
+        _make_box("RejectBin", (5.5, 2.225, 0.02), (0.32, 0.32, 0.04),
                   (0.78, 0.22, 0.18))
         for i in range(6):
             _make_box("RejectBox%d" % i, (100.0, 100.0, 100.0),
@@ -533,10 +533,10 @@ def _update_outfeed():
     _ensure_line_objects()
 
     # Line A uses OutfeedBox0..2 at y = 1.7 (yellow), line B uses OutfeedBox3..5
-    # at y = 2.45 (green).
+    # at y = 2.75 (green).
     lines = {
         "a": {"y": 1.7, "color": (0.98, 0.76, 0.10, 1.0), "first": 0},
-        "b": {"y": 2.45, "color": (0.10, 0.75, 0.35, 1.0), "first": 3},
+        "b": {"y": 2.75, "color": (0.10, 0.75, 0.35, 1.0), "first": 3},
     }
     for key, cfg in lines.items():
         positions = state.get("outfeed/%s/positions" % key, "")
@@ -553,7 +553,7 @@ def _update_outfeed():
 
     # Lift platforms collect stacked containers at the bottom and rise with the
     # plant lift z once the pallet is full.
-    for key, y, max_stack in (("a", 1.7, 4), ("b", 2.45, 2)):
+    for key, y, max_stack in (("a", 1.7, 4), ("b", 2.75, 2)):
         lift_z = state.get("lift/%s/z" % key, 0.0) / 100.0
         stack = max(0, int(state.get("lift/%s/stack" % key, 0)))
         lift = _obj("Lift%s" % key.upper())
@@ -599,7 +599,7 @@ def _update_rejects():
             col = i % 5
             pile.location = (
                 5.5 + (col - 2) * 0.055,
-                2.075,
+                2.225,
                 0.06 + row * 0.05,
             )
         else:
