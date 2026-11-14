@@ -212,6 +212,10 @@ def _ensure_line_objects():
     try:
         _make_box("OutfeedBeltB", (5.2, 2.45, 0.04), (2.0, 0.10, 0.02),
                   (0.60, 0.65, 0.70))
+        _make_box("OutfeedRollerBL", (4.2, 2.45, 0.05), (0.08, 0.10, 0.08),
+                  (0.62, 0.66, 0.72))
+        _make_box("OutfeedRollerBR", (6.2, 2.45, 0.05), (0.08, 0.10, 0.08),
+                  (0.62, 0.66, 0.72))
         _make_box("LiftA", (6.2, 1.7, 0.08), (0.18, 0.18, 0.06),
                   (0.90, 0.50, 0.20))
         _make_box("LiftB", (6.2, 2.45, 0.08), (0.18, 0.18, 0.06),
@@ -672,7 +676,8 @@ def apply_twin():
         if roller and state["belt"] > 0.5:
             roller.rotation_euler[0] += 0.02 * state["speed"] / 90.0
 
-    for name in ("OutfeedRollerL", "OutfeedRollerR"):
+    for name in ("OutfeedRollerL", "OutfeedRollerR",
+                 "OutfeedRollerBL", "OutfeedRollerBR"):
         roller = _obj(name)
         if roller:
             roller.rotation_euler[0] += 0.02  # outfeed runs continuously
