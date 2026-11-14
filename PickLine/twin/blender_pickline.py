@@ -257,6 +257,12 @@ def _ensure_line_objects():
         for i in range(10):
             _make_box("RejectPile%d" % i, (100.0, 100.0, 100.0),
                       (0.07, 0.07, 0.05), (0.90, 0.25, 0.20))
+        # Remove solid-block fence leftovers from older script versions.
+        for old in ("FenceLeft", "FenceRight", "FenceRightTop", "FenceRightMid",
+                    "FenceRightBottom", "FenceTop", "FenceBottomL", "FenceBottomR"):
+            ob = _obj(old)
+            if ob is not None:
+                bpy.data.objects.remove(ob, do_unlink=True)
         # Safety fence around the robot cell, with a door on the bottom edge.
         fence = (0.90, 0.50, 0.20)
         _fence_segment("FenceLeft", 4.1, 1.15, 4.1, 2.65, fence)
