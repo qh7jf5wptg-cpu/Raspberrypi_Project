@@ -254,7 +254,14 @@ ApplicationWindow {
 
                             ctx.fillStyle = "#172033"
                             ctx.font = "bold 11px sans-serif"
-                            ctx.fillText(label, cx, y0 - 7)
+                            if (key === "b") {
+                                ctx.textAlign = "right"
+                                ctx.fillText(label, x0 - 6, cy + 4)
+                            } else {
+                                ctx.textAlign = "center"
+                                ctx.fillText(label, cx, y0 - 7)
+                            }
+                            ctx.textAlign = "center"
                             ctx.fillText(pct.toFixed(0) + "%", cx, y0 + tankH + 13)
                             ctx.font = "10px sans-serif"
                             ctx.fillStyle = "#637083"
