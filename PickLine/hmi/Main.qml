@@ -376,6 +376,43 @@ ApplicationWindow {
                         drawRobot("a", 460, 135, "ROBOT A")
                         drawRobot("b", 430, 205, "ROBOT B")
 
+                        // Safety fence around the robot cell with a door.
+                        var fenceL = X(390), fenceR = X(500)
+                        var fenceT = Y(285), fenceB = Y(95)
+                        ctx.strokeStyle = "#e67e22"
+                        ctx.lineWidth = 3
+                        ctx.setLineDash([6 * s, 3 * s])
+                        ctx.beginPath()
+                        ctx.moveTo(fenceL, fenceT)
+                        ctx.lineTo(fenceR, fenceT)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(fenceR, fenceT)
+                        ctx.lineTo(fenceR, fenceB)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(fenceL, fenceT)
+                        ctx.lineTo(fenceL, fenceB)
+                        ctx.stroke()
+                        ctx.setLineDash([])
+                        ctx.beginPath()
+                        ctx.moveTo(fenceL, fenceB)
+                        ctx.lineTo(X(420), fenceB)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(X(460), fenceB)
+                        ctx.lineTo(fenceR, fenceB)
+                        ctx.stroke()
+                        ctx.strokeStyle = "#e67e22"
+                        ctx.lineWidth = 2
+                        ctx.beginPath()
+                        ctx.arc(X(460), fenceB, X(460) - X(420), Math.PI, Math.PI * 1.5)
+                        ctx.stroke()
+                        ctx.fillStyle = "#e67e22"
+                        ctx.font = "bold 9px sans-serif"
+                        ctx.textAlign = "center"
+                        ctx.fillText("SAFETY DOOR", X(440), fenceB + 16 * s)
+
                         // Quality gate: shared reject bin between the outfeeds.
                         var rejectItems = tag("reject/items", "[]")
                         var rj = []
