@@ -182,6 +182,21 @@ def _make_box(name, loc, dims, color):
     return ob
 
 
+def _fence_segment(name, x1, y1, x2, y2, color):
+    """Post-and-rail fence segment (two posts plus top/bottom rails)."""
+    _make_box(name + "_p1", (x1, y1, 0.15), (0.025, 0.025, 0.3), color)
+    _make_box(name + "_p2", (x2, y2, 0.15), (0.025, 0.025, 0.3), color)
+    length = max(0.001, math.hypot(x2 - x1, y2 - y1))
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
+    if abs(x2 - x1) >= abs(y2 - y1):
+        _make_box(name + "_r1", (cx, cy, 0.25), (length, 0.02, 0.02), color)
+        _make_box(name + "_r2", (cx, cy, 0.08), (length, 0.02, 0.02), color)
+    else:
+        _make_box(name + "_r1", (cx, cy, 0.25), (0.02, length, 0.02), color)
+        _make_box(name + "_r2", (cx, cy, 0.08), (0.02, length, 0.02), color)
+
+
 _line_objects_ready = False
 _part_objects_ready = False
 
@@ -244,12 +259,12 @@ def _ensure_line_objects():
                       (0.07, 0.07, 0.05), (0.90, 0.25, 0.20))
         # Safety fence around the robot cell, with a door on the bottom edge.
         fence = (0.90, 0.50, 0.20)
-        _make_box("FenceLeft", (4.1, 1.9, 0.2), (0.03, 1.5, 0.3), fence)
-        _make_box("FenceRightTop", (4.75, 2.225, 0.2), (0.03, 0.85, 0.3), fence)
-        _make_box("FenceRightBottom", (4.75, 1.375, 0.2), (0.03, 0.45, 0.3), fence)
-        _make_box("FenceTop", (4.425, 2.65, 0.2), (0.65, 0.03, 0.3), fence)
-        _make_box("FenceBottomL", (4.175, 1.15, 0.2), (0.15, 0.03, 0.3), fence)
-        _make_box("FenceBottomR", (4.65, 1.15, 0.2), (0.2, 0.03, 0.3), fence)
+        _fence_segment("FenceLeft", 4.1, 1.15, 4.1, 2.65, fence)
+        _fence_segment("FenceRightTop", 4.75, 2.65, 4.75, 1.80, fence)
+        _fence_segment("FenceRightBottom", 4.75, 1.60, 4.75, 1.15, fence)
+        _fence_segment("FenceTop", 4.1, 2.65, 4.75, 2.65, fence)
+        _fence_segment("FenceBottomL", 4.1, 1.15, 4.25, 1.15, fence)
+        _fence_segment("FenceBottomR", 4.55, 1.15, 4.75, 1.15, fence)
     except Exception:
         pass
 
