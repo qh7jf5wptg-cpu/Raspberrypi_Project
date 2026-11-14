@@ -327,6 +327,15 @@ ApplicationWindow {
                             ctx.textAlign = "center"
                             ctx.fillText(label, X(520), Y(y) + 24 * s)
 
+                            // Rollers at the two ends of the outfeed.
+                            ctx.fillStyle = "#5d6b7d"
+                            ctx.beginPath()
+                            ctx.arc(X(420), Y(y), 5 * s, 0, Math.PI * 2)
+                            ctx.fill()
+                            ctx.beginPath()
+                            ctx.arc(X(615), Y(y), 5 * s, 0, Math.PI * 2)
+                            ctx.fill()
+
                             // Containers riding this outfeed.
                             var positions = tag("outfeed/" + key + "/positions", "")
                             if (positions.length > 0) {
