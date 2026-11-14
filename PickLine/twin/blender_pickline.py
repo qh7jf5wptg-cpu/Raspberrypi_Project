@@ -214,11 +214,11 @@ def _ensure_line_objects():
                   (0.60, 0.65, 0.70))
         _make_box("OutfeedRollerBL", (4.2, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
-        _make_box("OutfeedRollerBR", (6.1, 2.75, 0.05), (0.08, 0.10, 0.08),
+        _make_box("OutfeedRollerBR", (6.05, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
-        _make_box("LiftA", (6.2, 1.7, 0.08), (0.18, 0.18, 0.06),
+        _make_box("LiftA", (6.3, 1.7, 0.08), (0.14, 0.14, 0.06),
                   (0.90, 0.50, 0.20))
-        _make_box("LiftB", (6.2, 2.75, 0.08), (0.18, 0.18, 0.06),
+        _make_box("LiftB", (6.3, 2.75, 0.08), (0.14, 0.14, 0.06),
                   (0.90, 0.50, 0.20))
         # Align the .blend A outfeed with the lift (same span as B).
         a_belt = _obj("OutfeedBelt")
@@ -227,7 +227,7 @@ def _ensure_line_objects():
             a_belt.scale = (2.0, 0.10, 0.02)
         a_roller_r = _obj("OutfeedRollerR")
         if a_roller_r:
-            a_roller_r.location = (6.1, 1.7, 0.05)
+            a_roller_r.location = (6.05, 1.7, 0.05)
         for i in range(4):
             _make_box("LiftStackA%d" % i, (100.0, 100.0, 100.0),
                       (0.12, 0.12, 0.05), (0.98, 0.76, 0.10))
@@ -574,13 +574,13 @@ def _update_outfeed():
         stack = max(0, int(state.get("lift/%s/stack" % key, 0)))
         lift = _obj("Lift%s" % key.upper())
         if lift:
-            lift.location = (6.2, y, 0.06 + lift_z)
+            lift.location = (6.3, y, 0.06 + lift_z)
         for i in range(max_stack):
             box = _obj("LiftStack%s%d" % (key.upper(), i))
             if box is None:
                 continue
             if i < stack:
-                box.location = (6.2, y, 0.13 + lift_z + i * 0.05)
+                box.location = (6.3, y, 0.13 + lift_z + i * 0.05)
             else:
                 box.location = (100.0, 100.0, 100.0)
 

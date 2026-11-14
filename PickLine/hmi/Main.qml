@@ -333,7 +333,7 @@ ApplicationWindow {
                             ctx.arc(X(420), Y(y), 5 * s, 0, Math.PI * 2)
                             ctx.fill()
                             ctx.beginPath()
-                            ctx.arc(X(615), Y(y), 5 * s, 0, Math.PI * 2)
+                            ctx.arc(X(605), Y(y), 5 * s, 0, Math.PI * 2)
                             ctx.fill()
 
                             // Containers riding this outfeed.
