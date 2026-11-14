@@ -19,7 +19,7 @@ OUTFEED_A_START_X = 420.0
 OUTFEED_A_DROP = (430.0, OUTFEED_A_Y, 30.0)
 OUTFEED_A_LIFT_X = 620.0
 
-# Outfeed B (station B, green): runs to the right at y = 245.
+# Outfeed B (station B, green): runs to the right at y = 275.
 OUTFEED_B_Y = 275.0
 OUTFEED_B_START_X = 420.0
 OUTFEED_B_DROP = (430.0, OUTFEED_B_Y, 30.0)

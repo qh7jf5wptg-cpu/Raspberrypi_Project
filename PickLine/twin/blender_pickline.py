@@ -231,6 +231,18 @@ def _ensure_line_objects():
                   (0.62, 0.66, 0.72))
         _make_box("OutfeedRollerBR", (6.05, 2.75, 0.05), (0.08, 0.10, 0.08),
                   (0.62, 0.66, 0.72))
+        # Force the B outfeed objects to the correct position in case older
+        # copies already exist in the scene.
+        _ob = _obj("OutfeedBeltB")
+        if _ob:
+            _ob.location = (5.2, 2.75, 0.04)
+            _ob.scale = (2.0, 0.10, 0.02)
+        _ob = _obj("OutfeedRollerBL")
+        if _ob:
+            _ob.location = (4.2, 2.75, 0.05)
+        _ob = _obj("OutfeedRollerBR")
+        if _ob:
+            _ob.location = (6.05, 2.75, 0.05)
         _make_box("LiftA", (6.3, 1.7, 0.08), (0.14, 0.14, 0.06),
                   (0.90, 0.50, 0.20))
         _make_box("LiftB", (6.3, 2.75, 0.08), (0.14, 0.14, 0.06),
