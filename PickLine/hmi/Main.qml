@@ -376,7 +376,8 @@ ApplicationWindow {
                         drawRobot("a", 460, 135, "ROBOT A")
                         drawRobot("b", 430, 205, "ROBOT B")
 
-                        // Safety fence around the robot cell with a door.
+                        // Safety fence around the robot cell, with openings
+                        // where the two outfeed belts pass through.
                         var fenceL = X(390), fenceR = X(500)
                         var fenceT = Y(285), fenceB = Y(95)
                         ctx.strokeStyle = "#e67e22"
@@ -387,12 +388,16 @@ ApplicationWindow {
                         ctx.lineTo(fenceR, fenceT)
                         ctx.stroke()
                         ctx.beginPath()
-                        ctx.moveTo(fenceR, fenceT)
-                        ctx.lineTo(fenceR, fenceB)
-                        ctx.stroke()
-                        ctx.beginPath()
                         ctx.moveTo(fenceL, fenceT)
                         ctx.lineTo(fenceL, fenceB)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(fenceR, Y(263))
+                        ctx.lineTo(fenceR, Y(182))
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(fenceR, Y(158))
+                        ctx.lineTo(fenceR, fenceB)
                         ctx.stroke()
                         ctx.setLineDash([])
                         ctx.beginPath()

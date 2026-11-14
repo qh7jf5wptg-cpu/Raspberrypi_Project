@@ -237,7 +237,8 @@ def _ensure_line_objects():
         # Safety fence around the robot cell, with a door on the bottom edge.
         fence = (0.90, 0.50, 0.20)
         _make_box("FenceLeft", (3.9, 1.9, 0.35), (0.03, 1.9, 0.6), fence)
-        _make_box("FenceRight", (5.0, 1.9, 0.35), (0.03, 1.9, 0.6), fence)
+        _make_box("FenceRightMid", (5.0, 2.225, 0.35), (0.03, 0.81, 0.6), fence)
+        _make_box("FenceRightBottom", (5.0, 1.265, 0.35), (0.03, 0.63, 0.6), fence)
         _make_box("FenceTop", (4.45, 2.85, 0.35), (1.13, 0.03, 0.6), fence)
         _make_box("FenceBottomL", (4.05, 0.95, 0.35), (0.3, 0.03, 0.6), fence)
         _make_box("FenceBottomR", (4.8, 0.95, 0.35), (0.4, 0.03, 0.6), fence)
